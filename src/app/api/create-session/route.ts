@@ -3,7 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { parseReceipt } from "@/lib/openai";
 
 export async function POST(request: NextRequest) {
-  const { imageUrl, hostName, hostVenmo } = await request.json();
+  const { imageUrl, hostName, hostVenmo, groupSize } = await request.json();
 
   if (!imageUrl) {
     return NextResponse.json(
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
         status: "parsing",
         image_url: imageUrl,
         host_venmo: hostVenmo || null,
+        group_size: groupSize || null,
       })
       .select("id")
       .single();
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     if (sessionError || !session) {
       console.error("Session creation failed:", sessionError);
       return NextResponse.json(
-        { error: "Failed to create session" },
+        { error: `Failed to create session: ${sessionError?.message || "unknown"}` },
         { status: 500 }
       );
     }
@@ -54,11 +55,12 @@ export async function POST(request: NextRequest) {
     const parsed = await parseReceipt(imageUrl);
 
     // Insert items
-    const itemRows = parsed.items.map((item) => ({
+    const itemRows = parsed.items.map((item, index) => ({
       session_id: session.id,
       name: item.name,
       price: item.price,
       quantity: item.quantity,
+      sort_order: index,
     }));
 
     const { error: itemsError } = await supabase.from("items").insert(itemRows);
@@ -70,6 +72,7 @@ export async function POST(request: NextRequest) {
     const { error: updateError } = await supabase
       .from("sessions")
       .update({
+        restaurant_name: parsed.restaurant || null,
         subtotal: parsed.subtotal,
         tax: parsed.tax,
         tip_amount: parsed.tip,
@@ -88,8 +91,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Receipt processing error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: "Failed to parse receipt. Please try a clearer image." },
+      { error: `Failed to parse receipt: ${message}` },
       { status: 500 }
     );
   }

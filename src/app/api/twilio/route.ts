@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
     await supabase
       .from("sessions")
       .update({
+        restaurant_name: parsed.restaurant || null,
         subtotal: parsed.subtotal,
         tax: parsed.tax,
         tip_amount: parsed.tip,

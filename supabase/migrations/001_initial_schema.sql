@@ -3,6 +3,7 @@ create table sessions (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz default now(),
   host_phone text,
+  restaurant_name text,
   host_venmo text,
   image_url text,
   subtotal numeric(10,2),
