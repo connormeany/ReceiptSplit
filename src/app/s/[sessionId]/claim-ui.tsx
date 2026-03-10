@@ -42,6 +42,7 @@ interface Claim {
   person_id: string;
   split_count: number;
   custom_amount: number | null;
+  custom_fraction: string | null;
 }
 
 type Step = "review" | "join" | "claim" | "done";
@@ -177,10 +178,10 @@ export function ClaimUI({
     setJoining(false);
   };
 
-  const handleClaim = async (itemId: string, splitCount: number, customAmount?: number) => {
+  const handleClaim = async (itemId: string, splitCount: number, customAmount?: number, customFraction?: string) => {
     if (!currentPersonId) return;
     try {
-      await claimItem(itemId, currentPersonId, splitCount, customAmount);
+      await claimItem(itemId, currentPersonId, splitCount, customAmount, customFraction);
       await refreshClaims();
     } catch {
       alert("Failed to claim item.");
@@ -209,6 +210,7 @@ export function ClaimUI({
           person_id: c.person_id,
           split_count: c.split_count,
           custom_amount: c.custom_amount,
+          custom_fraction: c.custom_fraction,
           item_price: item.price,
           item_name: item.name,
         };
@@ -531,7 +533,9 @@ export function ClaimUI({
               <li key={i} className="flex justify-between">
                 <span>
                   {item.name}
-                  {item.custom_amount != null ? (
+                  {item.custom_fraction ? (
+                    <span className="ml-1 text-gray-400">({item.custom_fraction})</span>
+                  ) : item.custom_amount != null ? (
                     <span className="ml-1 text-gray-400">(custom)</span>
                   ) : item.split_count > 1 ? (
                     <span className="ml-1 text-gray-400">(1/{item.split_count})</span>
@@ -748,7 +752,7 @@ export function ClaimUI({
                 people={people}
                 myClaim={myClaim || null}
                 groupSize={session.group_size}
-                onClaim={(splitCount, customAmount) => handleClaim(item.id, splitCount, customAmount)}
+                onClaim={(splitCount, customAmount, customFraction) => handleClaim(item.id, splitCount, customAmount, customFraction)}
                 onUnclaim={() => handleUnclaim(item.id)}
               />
             );

@@ -6,7 +6,8 @@ export async function claimItem(
   itemId: string,
   personId: string,
   splitCount: number,
-  customAmount?: number
+  customAmount?: number,
+  customFraction?: string
 ) {
   const supabase = createServerClient();
 
@@ -23,6 +24,7 @@ export async function claimItem(
       person_id: personId,
       split_count: splitCount,
       custom_amount: customAmount ?? null,
+      custom_fraction: customFraction ?? null,
     },
     { onConflict: "item_id,person_id" }
   );

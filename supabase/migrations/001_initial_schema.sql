@@ -38,6 +38,8 @@ create table claims (
   item_id uuid references items(id) on delete cascade,
   person_id uuid references people(id) on delete cascade,
   split_count integer not null default 1,
+  custom_amount numeric(10,2),
+  custom_fraction text,
   created_at timestamptz default now(),
   unique (item_id, person_id)
 );

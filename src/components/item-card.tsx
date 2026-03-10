@@ -4,11 +4,11 @@ import { useState } from "react";
 
 interface ItemCardProps {
   item: { id: string; name: string; price: number; quantity: number };
-  claims: { id: string; item_id: string; person_id: string; split_count: number; custom_amount: number | null }[];
+  claims: { id: string; item_id: string; person_id: string; split_count: number; custom_amount: number | null; custom_fraction: string | null }[];
   people: { id: string; name: string; color: string }[];
-  myClaim: { id: string; split_count: number; custom_amount: number | null } | null;
+  myClaim: { id: string; split_count: number; custom_amount: number | null; custom_fraction: string | null } | null;
   groupSize: number | null;
-  onClaim: (splitCount: number, customAmount?: number) => void;
+  onClaim: (splitCount: number, customAmount?: number, customFraction?: string) => void;
   onUnclaim: () => void;
 }
 
@@ -24,18 +24,22 @@ export function ItemCard({
   const [showSplitOptions, setShowSplitOptions] = useState(false);
   const [showMoreSplits, setShowMoreSplits] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [showFractionInput, setShowFractionInput] = useState(false);
   const [customAmount, setCustomAmount] = useState("");
+  const [fractionNum, setFractionNum] = useState("1");
+  const [fractionDenom, setFractionDenom] = useState("");
   const [loading, setLoading] = useState(false);
 
   const claimers = claims
     .map((c) => {
       const person = people.find((p) => p.id === c.person_id);
-      return person ? { ...person, split_count: c.split_count, custom_amount: c.custom_amount } : null;
+      return person ? { ...person, split_count: c.split_count, custom_amount: c.custom_amount, custom_fraction: c.custom_fraction } : null;
     })
-    .filter(Boolean) as { id: string; name: string; color: string; split_count: number; custom_amount: number | null }[];
+    .filter(Boolean) as { id: string; name: string; color: string; split_count: number; custom_amount: number | null; custom_fraction: string | null }[];
 
   const splitCount = claims[0]?.split_count || 1;
   const hasCustomClaims = claims.some((c) => c.custom_amount != null);
+  const hasFractionClaims = claims.some((c) => c.custom_fraction != null);
   const isClaimed = claims.length > 0;
   const iClaimedThis = !!myClaim;
   const isSplit = splitCount > 1;
@@ -47,11 +51,12 @@ export function ItemCard({
     hasCustomClaims ? remaining <= 0 : claims.length >= splitCount
   );
 
-  const handleClaim = async (sc: number, ca?: number) => {
+  const handleClaim = async (sc: number, ca?: number, cf?: string) => {
     setLoading(true);
     setShowSplitOptions(false);
     setShowCustomInput(false);
-    await onClaim(sc, ca);
+    setShowFractionInput(false);
+    await onClaim(sc, ca, cf);
     setLoading(false);
   };
 
@@ -65,6 +70,15 @@ export function ItemCard({
   // Tap card to claim (only when not already claimed by me and not full)
   const handleCardTap = () => {
     if (loading || isFull || iClaimedThis) return;
+    if (hasFractionClaims) {
+      // Open fraction input so user can specify their share
+      setShowFractionInput(true);
+      setShowSplitOptions(false);
+      setShowCustomInput(false);
+      setFractionNum("1");
+      setFractionDenom("");
+      return;
+    }
     if (hasCustomClaims) {
       handleClaim(1, remaining);
     } else {
@@ -106,7 +120,7 @@ export function ItemCard({
                   style={{ backgroundColor: c.color }}
                 >
                   {c.name}
-                  {c.custom_amount != null && ` $${c.custom_amount.toFixed(2)}`}
+                  {c.custom_fraction ? ` ${c.custom_fraction}` : c.custom_amount != null ? ` $${c.custom_amount.toFixed(2)}` : ""}
                 </span>
               ))}
               {hasCustomClaims && remaining > 0 && (
@@ -137,30 +151,45 @@ export function ItemCard({
               >
                 Unclaim
               </button>
-              <button
-                onClick={async () => {
-                  if (!isSplit && groupSize && groupSize >= 2) {
-                    // Apply group size split and show options panel
-                    setShowSplitOptions(true);
-                    setShowMoreSplits(groupSize > 8);
-                    setShowCustomInput(false);
-                    setLoading(true);
-                    await onClaim(groupSize);
-                    setLoading(false);
-                  } else {
-                    setShowSplitOptions(!showSplitOptions);
-                    setShowMoreSplits(false);
-                    setShowCustomInput(false);
-                  }
-                }}
-                className="rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
-              >
-                {isSplit ? `Split ${splitCount}-way` : "Split..."}
-              </button>
+              {!hasCustomClaims && (
+                <button
+                  onClick={async () => {
+                    if (!isSplit && groupSize && groupSize >= 2) {
+                      // Apply group size split and show options panel
+                      setShowSplitOptions(true);
+                      setShowMoreSplits(groupSize > 8);
+                      setShowCustomInput(false);
+                      setLoading(true);
+                      await onClaim(groupSize);
+                      setLoading(false);
+                    } else {
+                      setShowSplitOptions(!showSplitOptions);
+                      setShowMoreSplits(false);
+                      setShowCustomInput(false);
+                    }
+                  }}
+                  className="rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  {isSplit ? `Split ${splitCount}-way` : "Split..."}
+                </button>
+              )}
             </>
           ) : (
             <>
-              {hasCustomClaims ? (
+              {hasFractionClaims ? (
+                <button
+                  onClick={() => {
+                    setShowFractionInput(!showFractionInput);
+                    setShowCustomInput(false);
+                    setShowSplitOptions(false);
+                    setFractionNum("1");
+                    setFractionDenom("");
+                  }}
+                  className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100"
+                >
+                  Claim fraction
+                </button>
+              ) : hasCustomClaims ? (
                 <button
                   onClick={() => handleClaim(1, remaining)}
                   className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100"
@@ -175,26 +204,28 @@ export function ItemCard({
                   {isClaimed ? "Join split" : "Claim"}
                 </button>
               )}
-              <button
-                onClick={async () => {
-                  if (!isClaimed && groupSize && groupSize >= 2) {
-                    // Apply group size split and show options panel
-                    setShowSplitOptions(true);
-                    setShowMoreSplits(groupSize > 8);
-                    setShowCustomInput(false);
-                    setLoading(true);
-                    await onClaim(groupSize);
-                    setLoading(false);
-                  } else {
-                    setShowSplitOptions(!showSplitOptions);
-                    setShowMoreSplits(false);
-                    setShowCustomInput(false);
-                  }
-                }}
-                className="rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
-              >
-                {isClaimed ? `Split ${splitCount}-way` : "Split..."}
-              </button>
+              {!hasCustomClaims && (
+                <button
+                  onClick={async () => {
+                    if (!isClaimed && groupSize && groupSize >= 2) {
+                      // Apply group size split and show options panel
+                      setShowSplitOptions(true);
+                      setShowMoreSplits(groupSize > 8);
+                      setShowCustomInput(false);
+                      setLoading(true);
+                      await onClaim(groupSize);
+                      setLoading(false);
+                    } else {
+                      setShowSplitOptions(!showSplitOptions);
+                      setShowMoreSplits(false);
+                      setShowCustomInput(false);
+                    }
+                  }}
+                  className="rounded-lg bg-gray-50 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
+                >
+                  {isClaimed ? `Split ${splitCount}-way` : "Split..."}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -237,11 +268,23 @@ export function ItemCard({
           <button
             onClick={() => {
               setShowCustomInput(!showCustomInput);
+              setShowFractionInput(false);
               setCustomAmount("");
             }}
             className="rounded-lg border border-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
           >
             Custom $
+          </button>
+          <button
+            onClick={() => {
+              setShowFractionInput(!showFractionInput);
+              setShowCustomInput(false);
+              setFractionNum("1");
+              setFractionDenom("");
+            }}
+            className="rounded-lg border border-gray-200 px-3 py-1 text-sm text-gray-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600"
+          >
+            Custom /
           </button>
         </div>
       )}
@@ -275,6 +318,50 @@ export function ItemCard({
           </button>
         </div>
       )}
+
+      {showFractionInput && (() => {
+        const num = parseInt(fractionNum) || 0;
+        const denom = parseInt(fractionDenom) || 0;
+        const fractionAmount = denom > 0 && num > 0 ? Math.round((item.price * num / denom) * 100) / 100 : 0;
+        const valid = num > 0 && denom > 0 && num <= denom && fractionAmount > 0 && fractionAmount <= remaining;
+        return (
+          <div className="border-t border-gray-100 px-4 py-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="number"
+              min="1"
+              placeholder="1"
+              value={fractionNum}
+              onChange={(e) => setFractionNum(e.target.value)}
+              className="w-12 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            <span className="text-sm font-medium text-gray-500">/</span>
+            <input
+              type="number"
+              min="1"
+              placeholder="3"
+              value={fractionDenom}
+              onChange={(e) => setFractionDenom(e.target.value)}
+              className="w-12 rounded-lg border border-gray-300 px-2 py-1 text-center text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+            />
+            {denom > 0 && num > 0 && (
+              <span className="text-sm text-gray-400">= ${fractionAmount.toFixed(2)}</span>
+            )}
+            <button
+              onClick={() => {
+                if (valid) {
+                  handleClaim(1, fractionAmount, `${num}/${denom}`);
+                  setFractionNum("1");
+                  setFractionDenom("");
+                }
+              }}
+              disabled={!valid}
+              className="rounded-lg bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 hover:bg-blue-100 disabled:opacity-50"
+            >
+              Set
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
