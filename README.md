@@ -25,7 +25,6 @@ Split restaurant bills without the hassle. Upload a receipt photo, share a link,
 - **Next.js 16** — App Router, TypeScript, Tailwind CSS
 - **Supabase** — Postgres database + Realtime subscriptions + Storage
 - **OpenAI GPT-5.4** — receipt OCR with vision
-- **Twilio** — SMS/MMS ingress (text a receipt photo to create a session)
 - **Vercel** — hosting
 
 
