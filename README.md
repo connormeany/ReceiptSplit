@@ -28,44 +28,6 @@ Split restaurant bills without the hassle. Upload a receipt photo, share a link,
 - **Twilio** — SMS/MMS ingress (text a receipt photo to create a session)
 - **Vercel** — hosting
 
-## Setup
-
-### 1. Supabase
-
-Create a Supabase project and run `supabase/migrations/001_initial_schema.sql`, then run these additional migrations:
-
-```sql
-ALTER TABLE sessions ADD COLUMN group_size integer;
-ALTER TABLE sessions ADD COLUMN restaurant_name text;
-ALTER TABLE items ADD COLUMN sort_order integer DEFAULT 0;
-ALTER TABLE claims ADD COLUMN custom_amount numeric(10,2);
-ALTER TABLE claims ADD COLUMN custom_fraction text;
-ALTER TABLE sessions DROP CONSTRAINT IF EXISTS sessions_status_check;
-ALTER TABLE sessions ADD CONSTRAINT sessions_status_check CHECK (status IN ('parsing', 'review', 'active', 'finalized'));
-```
-
-Enable Realtime on the `claims` and `people` tables.
-
-Create a storage bucket called `receipts` (public).
-
-### 2. Environment Variables
-
-Create `.env.local`:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-OPENAI_API_KEY=your-openai-key
-TWILIO_AUTH_TOKEN=your-twilio-token  # optional, for SMS ingress
-```
-
-### 3. Run
-
-```bash
-npm install
-npm run dev
-```
 
 ## Project Structure
 
