@@ -14,10 +14,11 @@ export interface ParsedReceipt {
   subtotal: number;
   tax: number;
   tip: number;
+  misc_fee: number;
   total: number;
 }
 
-const SYSTEM_PROMPT = `You are a receipt parser. Extract all line items with their names and prices. Also extract the subtotal, tax amount, tip amount, and total.
+const SYSTEM_PROMPT = `You are a receipt parser. Extract all line items with their names and prices. Also extract the subtotal, tax amount, tip amount, miscellaneous fees (if any), and total.
 
 Return JSON in this exact format:
 {
@@ -26,7 +27,8 @@ Return JSON in this exact format:
   "subtotal": 45.97,
   "tax": 3.68,
   "tip": 9.19,
-  "total": 58.84
+  "misc_fee": 2.50,
+  "total": 61.34
 }
 
 - Extract the restaurant/merchant name if visible. If not found, set to ""
@@ -39,6 +41,7 @@ Rules:
 - DO include modifiers/add-ons that have a non-zero price as separate items
 - Make sure you capture EVERY line item on the receipt. Do not skip any items.
 - If the receipt includes a tip amount, include it. If no tip is shown, set tip to 0
+- Look for any miscellaneous fees such as service charges, convenience fees, or other surcharges. If present, extract as "misc_fee". If none are found, set "misc_fee" to 0. Do NOT include miscellaneous fees as line items in the "items" array.
 - If you can't parse the receipt, return {"error": "description of issue"}
 
 CRITICAL ACCURACY REQUIREMENT:
@@ -218,18 +221,18 @@ Return the corrected full JSON in the same format.`;
 
     const retryMessages = type === "image"
       ? [
-          { role: "system" as const, content: SYSTEM_PROMPT },
-          {
-            role: "user" as const,
-            content: [
-              { type: "image_url" as const, image_url: { url, detail: "high" as const } },
-            ],
-          },
-          { role: "assistant" as const, content },
-          { role: "user" as const, content: correctionMessage },
-        ]
+        { role: "system" as const, content: SYSTEM_PROMPT },
+        {
+          role: "user" as const,
+          content: [
+            { type: "image_url" as const, image_url: { url, detail: "high" as const } },
+          ],
+        },
+        { role: "assistant" as const, content },
+        { role: "user" as const, content: correctionMessage },
+      ]
       : type === "pdf"
-      ? [
+        ? [
           { role: "system" as const, content: SYSTEM_PROMPT },
           {
             role: "user" as const,
@@ -240,7 +243,7 @@ Return the corrected full JSON in the same format.`;
           { role: "assistant" as const, content },
           { role: "user" as const, content: correctionMessage },
         ]
-      : [
+        : [
           { role: "system" as const, content: SYSTEM_PROMPT },
           { role: "assistant" as const, content },
           { role: "user" as const, content: correctionMessage },

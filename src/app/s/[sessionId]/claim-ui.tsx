@@ -15,6 +15,7 @@ interface Session {
   tax: number;
   total: number;
   tip_amount: number;
+  misc_fee: number;
   host_venmo: string | null;
   image_url: string | null;
   restaurant_name: string | null;
@@ -91,6 +92,7 @@ export function ClaimUI({
   );
   const [reviewTax, setReviewTax] = useState(initialSession.tax);
   const [reviewTip, setReviewTip] = useState(initialSession.tip_amount);
+  const [reviewMiscFee, setReviewMiscFee] = useState(initialSession.misc_fee || 0);
   const [reviewRestaurant, setReviewRestaurant] = useState(initialSession.restaurant_name || "");
   const [confirming, setConfirming] = useState(false);
 
@@ -222,7 +224,8 @@ export function ClaimUI({
       people,
       session.subtotal,
       session.tax,
-      session.tip_amount
+      session.tip_amount,
+      session.misc_fee
     );
   };
 
@@ -252,13 +255,14 @@ export function ClaimUI({
       setConfirming(true);
       try {
         const computedSubtotal = reviewItems.reduce((sum, item) => sum + item.price, 0);
-        const computedTotal = computedSubtotal + reviewTax + reviewTip;
+        const computedTotal = computedSubtotal + reviewTax + reviewTip + reviewMiscFee;
         await confirmReview(
           session.id,
           reviewItems,
           Math.round(computedSubtotal * 100) / 100,
           reviewTax,
           reviewTip,
+          reviewMiscFee,
           Math.round(computedTotal * 100) / 100,
           reviewRestaurant
         );
@@ -268,6 +272,7 @@ export function ClaimUI({
           subtotal: Math.round(computedSubtotal * 100) / 100,
           tax: reviewTax,
           tip_amount: reviewTip,
+          misc_fee: reviewMiscFee,
           total: Math.round(computedTotal * 100) / 100,
           restaurant_name: reviewRestaurant || null,
           status: "active",
@@ -419,10 +424,23 @@ export function ClaimUI({
                 />
               </div>
             </div>
+            <div className="flex items-center justify-between">
+              <label className="text-sm text-gray-600">Misc Fee</label>
+              <div className="flex items-center">
+                <span className="text-sm text-gray-400">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={reviewMiscFee}
+                  onChange={(e) => setReviewMiscFee(parseFloat(e.target.value) || 0)}
+                  className="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+            </div>
             <div className="flex items-center justify-between border-t pt-2">
               <label className="text-sm font-medium text-gray-900">Total</label>
               <span className="text-sm font-medium text-gray-900">
-                ${(reviewItemsSum + reviewTax + reviewTip).toFixed(2)}
+                ${(reviewItemsSum + reviewTax + reviewTip + reviewMiscFee).toFixed(2)}
               </span>
             </div>
           </div>
@@ -555,6 +573,11 @@ export function ClaimUI({
             <div className="flex justify-between text-gray-500">
               <span>Tip</span><span>${total.tipShare.toFixed(2)}</span>
             </div>
+            {total.miscFeeShare > 0 && (
+              <div className="flex justify-between text-gray-500">
+                <span>Misc Fee</span><span>${total.miscFeeShare.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between pt-1 font-bold text-gray-900">
               <span>Total</span><span>${total.total.toFixed(2)}</span>
             </div>
@@ -703,6 +726,7 @@ export function ClaimUI({
                   setReviewItems(items.map((item, i) => ({ ...item, sort_order: i })));
                   setReviewTax(session.tax);
                   setReviewTip(session.tip_amount);
+                  setReviewMiscFee(session.misc_fee || 0);
                   setReviewRestaurant(session.restaurant_name || "");
                   setStep("review");
                 }}
