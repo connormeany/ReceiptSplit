@@ -136,7 +136,7 @@ export function Summary({ session, items, people, claims, currentPersonId }: Sum
                     <VenmoButton
                       venmoUsername={session.host_venmo!}
                       amount={person.total}
-                      note={`ReceiptSplit - ${person.person_name}`}
+                      note={`Split Split - ${person.person_name}`}
                     />
                   </div>
                 )}
