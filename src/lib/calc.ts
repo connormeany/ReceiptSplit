@@ -2,6 +2,7 @@ export interface ClaimWithItem {
   item_id: string;
   person_id: string;
   split_count: number;
+  custom_amount: number | null;
   item_price: number;
   item_name: string;
 }
@@ -9,7 +10,7 @@ export interface ClaimWithItem {
 export interface PersonTotal {
   person_id: string;
   person_name: string;
-  items: { name: string; price: number; split_count: number; share: number }[];
+  items: { name: string; price: number; split_count: number; custom_amount: number | null; share: number }[];
   subtotal: number;
   taxShare: number;
   tipShare: number;
@@ -30,7 +31,8 @@ export function calculateSplit(
       name: c.item_name,
       price: c.item_price,
       split_count: c.split_count,
-      share: c.item_price / c.split_count,
+      custom_amount: c.custom_amount,
+      share: c.custom_amount != null ? c.custom_amount : c.item_price / c.split_count,
     }));
 
     const subtotal = items.reduce((sum, item) => sum + item.share, 0);

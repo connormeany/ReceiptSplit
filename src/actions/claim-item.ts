@@ -5,7 +5,8 @@ import { createServerClient } from "@/lib/supabase/server";
 export async function claimItem(
   itemId: string,
   personId: string,
-  splitCount: number
+  splitCount: number,
+  customAmount?: number
 ) {
   const supabase = createServerClient();
 
@@ -21,6 +22,7 @@ export async function claimItem(
       item_id: itemId,
       person_id: personId,
       split_count: splitCount,
+      custom_amount: customAmount ?? null,
     },
     { onConflict: "item_id,person_id" }
   );
