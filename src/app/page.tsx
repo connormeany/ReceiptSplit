@@ -125,12 +125,14 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-6">
       <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-900">Split Split</h1>
-          <p className="mt-2 text-gray-500">
-            Split your restaurant bills without the hassle
+        <div className="mb-5 text-center">
+          <h1 className="text-4xl font-bold text-gray-900">
+            Split<span className="text-blue-500">Split</span>
+          </h1>
+          <p className="mt-2 text-sm text-gray-400 animate-fade-in">
+            The easy way to split the bill
           </p>
         </div>
 
@@ -167,12 +169,15 @@ export default function Home() {
                 Group Size <span className="font-normal text-gray-400">(optional)</span>
               </label>
               <input
-                type="number"
-                min="2"
-                max="20"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="How many people?"
                 value={groupSize}
-                onChange={(e) => setGroupSize(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/\D/g, "");
+                  if (v === "" || (parseInt(v) >= 0 && parseInt(v) <= 40)) setGroupSize(v);
+                }}
                 className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
               />
             </div>
