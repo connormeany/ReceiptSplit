@@ -815,7 +815,7 @@ export function ClaimUI({
           const unclaimedByMe = items.filter((item) => !claims.some((c) => c.item_id === item.id && c.person_id === currentPersonId));
           const hasUnclaimed = unclaimedByMe.length > 0;
           const showSplitAll = session.group_size && session.group_size >= 2;
-          if (!hasUnclaimed || !showSplitAll) return null;
+          if (!hasUnclaimed || !showSplitAll || !isHost) return null;
           return (
             <div className="mb-3">
               <button
