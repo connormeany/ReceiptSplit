@@ -103,9 +103,10 @@ export function ClaimUI({
     if (stored) {
       setCurrentPersonId(stored);
       const person = initialPeople.find((p) => p.id === stored);
-      // Auto-show review if host and no tip (likely pre-tip receipt photo)
+      // Auto-show review if host and no tip (likely pre-tip receipt photo), but not if already reviewed
+      const hasReviewed = localStorage.getItem(`reviewed-${session.id}`);
       const missingTipOrTax = !initialSession.tip_amount || !initialSession.tax;
-      const initialStep = person?.is_host && missingTipOrTax ? "review" : "claim";
+      const initialStep = person?.is_host && missingTipOrTax && !hasReviewed ? "review" : "claim";
       setStepRaw(initialStep);
       window.history.replaceState({ step: initialStep }, "");
     } else {
@@ -262,6 +263,8 @@ export function ClaimUI({
           Math.round(computedTotal * 100) / 100,
           reviewRestaurant
         );
+        // Mark as reviewed so we don't auto-show review again
+        localStorage.setItem(`reviewed-${session.id}`, "true");
         // Update local state and go to claim screen
         setSession((s) => ({
           ...s,
@@ -757,6 +760,22 @@ export function ClaimUI({
               />
             );
           })}
+        </div>
+
+        {/* Receipt totals reference */}
+        <div className="mt-4 space-y-1 rounded-xl bg-white p-4 shadow-sm text-sm text-gray-500">
+          <div className="flex justify-between">
+            <span>Subtotal</span><span>${session.subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tax</span><span>${session.tax.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tip</span><span>${session.tip_amount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between border-t pt-1 font-medium text-gray-900">
+            <span>Total</span><span>${session.total.toFixed(2)}</span>
+          </div>
         </div>
       </div>
 
