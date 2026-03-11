@@ -14,46 +14,20 @@ export interface ParsedReceipt {
   subtotal: number;
   tax: number;
   tip: number;
-  misc_fee: number;
   total: number;
 }
 
-const receiptSchema = {
-  type: "json_schema" as const,
-  json_schema: {
-    name: "parsed_receipt",
-    strict: true,
-    schema: {
-      type: "object",
-      properties: {
-        restaurant: { type: "string" },
-        items: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              price: { type: "number" },
-              quantity: { type: "number" }
-            },
-            required: ["name", "price", "quantity"],
-            additionalProperties: false
-          }
-        },
-        subtotal: { type: "number" },
-        tax: { type: "number" },
-        tip: { type: "number" },
-        misc_fee: { type: "number" },
-        total: { type: "number" },
-        error: { type: ["string", "null"] }
-      },
-      required: ["restaurant", "items", "subtotal", "tax", "tip", "misc_fee", "total", "error"],
-      additionalProperties: false
-    }
-  }
-};
+const SYSTEM_PROMPT = `You are a receipt parser. Extract all line items with their names and prices. Also extract the subtotal, tax amount, tip amount, and total.
 
-const SYSTEM_PROMPT = `You are a receipt parser. Extract all line items with their names and prices. Also extract the subtotal, tax amount, tip amount, miscellaneous fees (if any), and total.
+Return JSON in this exact format:
+{
+  "restaurant": "Restaurant Name",
+  "items": [{"name": "Item Name", "price": 12.99, "quantity": 1}],
+  "subtotal": 45.97,
+  "tax": 3.68,
+  "tip": 9.19,
+  "total": 58.84
+}
 
 - Extract the restaurant/merchant name if visible. If not found, set to ""
 
@@ -65,8 +39,7 @@ Rules:
 - DO include modifiers/add-ons that have a non-zero price as separate items
 - Make sure you capture EVERY line item on the receipt. Do not skip any items.
 - If the receipt includes a tip amount, include it. If no tip is shown, set tip to 0
-- Look for any miscellaneous fees such as service charges, convenience fees, or other surcharges. If present, extract as "misc_fee". If none are found, set "misc_fee" to 0. Do NOT include miscellaneous fees as line items in the "items" array.
-- If you can't parse the receipt, provide a description of the issue in the "error" field. Otherwise, set "error" to null.
+- If you can't parse the receipt, return {"error": "description of issue"}
 
 CRITICAL ACCURACY REQUIREMENT:
 - First, read the subtotal printed on the receipt. This number is GROUND TRUTH.
@@ -141,7 +114,7 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
     response = await getOpenAI().chat.completions.create({
       model: "gpt-5.4",
       reasoning_effort: "none",
-      response_format: receiptSchema,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -161,7 +134,7 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
     response = await getOpenAI().chat.completions.create({
       model: "gpt-5.4",
       reasoning_effort: "none",
-      response_format: receiptSchema,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -184,7 +157,7 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
     const text = await fetchWebpageText(url);
     response = await getOpenAI().chat.completions.create({
       model: "gpt-4o-mini",
-      response_format: receiptSchema,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -241,22 +214,22 @@ Also check: are there any items on the receipt that you missed entirely?
 
 After correcting, verify your new sum equals EXACTLY $${parsed.subtotal.toFixed(2)} before returning.
 
-Return the corrected full JSON.`;
+Return the corrected full JSON in the same format.`;
 
     const retryMessages = type === "image"
       ? [
-        { role: "system" as const, content: SYSTEM_PROMPT },
-        {
-          role: "user" as const,
-          content: [
-            { type: "image_url" as const, image_url: { url, detail: "high" as const } },
-          ],
-        },
-        { role: "assistant" as const, content },
-        { role: "user" as const, content: correctionMessage },
-      ]
+          { role: "system" as const, content: SYSTEM_PROMPT },
+          {
+            role: "user" as const,
+            content: [
+              { type: "image_url" as const, image_url: { url, detail: "high" as const } },
+            ],
+          },
+          { role: "assistant" as const, content },
+          { role: "user" as const, content: correctionMessage },
+        ]
       : type === "pdf"
-        ? [
+      ? [
           { role: "system" as const, content: SYSTEM_PROMPT },
           {
             role: "user" as const,
@@ -267,7 +240,7 @@ Return the corrected full JSON.`;
           { role: "assistant" as const, content },
           { role: "user" as const, content: correctionMessage },
         ]
-        : [
+      : [
           { role: "system" as const, content: SYSTEM_PROMPT },
           { role: "assistant" as const, content },
           { role: "user" as const, content: correctionMessage },
@@ -276,7 +249,7 @@ Return the corrected full JSON.`;
     const retryResponse = await getOpenAI().chat.completions.create({
       model: type === "webpage" ? "gpt-4o-mini" : "gpt-5.4",
       reasoning_effort: type === "webpage" ? undefined : "none",
-      response_format: receiptSchema,
+      response_format: { type: "json_object" },
       messages: retryMessages,
       max_completion_tokens: 1000,
     } as any);
