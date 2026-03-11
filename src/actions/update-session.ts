@@ -15,19 +15,6 @@ export async function updateTipAmount(sessionId: string, tipAmount: number) {
   }
 }
 
-export async function updateMiscFee(sessionId: string, miscFee: number) {
-  const supabase = createServerClient();
-
-  const { error } = await supabase
-    .from("sessions")
-    .update({ misc_fee: miscFee })
-    .eq("id", sessionId);
-
-  if (error) {
-    throw new Error("Failed to update misc fee");
-  }
-}
-
 export async function updateHostVenmo(sessionId: string, venmoUsername: string) {
   const supabase = createServerClient();
 
