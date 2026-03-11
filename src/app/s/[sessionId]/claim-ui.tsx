@@ -810,62 +810,27 @@ export function ClaimUI({
           ))}
         </div>
 
-        {/* Progress */}
-        {(() => {
-          const claimedCount = items.filter((item) => claims.some((c) => c.item_id === item.id)).length;
-          return (
-            <div className="mb-3">
-              <div className="mb-1 flex justify-between text-xs text-gray-500">
-                <span>{claimedCount} of {items.length} items claimed</span>
-                {claimedCount === items.length && <span className="text-green-600 font-medium">All claimed!</span>}
-              </div>
-              <div className="h-1.5 w-full rounded-full bg-gray-200">
-                <div
-                  className="h-1.5 rounded-full bg-blue-500 transition-all"
-                  style={{ width: `${items.length > 0 ? (claimedCount / items.length) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Quick actions */}
         {(() => {
           const unclaimedByMe = items.filter((item) => !claims.some((c) => c.item_id === item.id && c.person_id === currentPersonId));
           const hasUnclaimed = unclaimedByMe.length > 0;
           const showSplitAll = session.group_size && session.group_size >= 2;
-          if (!hasUnclaimed) return null;
+          if (!hasUnclaimed || !showSplitAll) return null;
           return (
-            <div className="mb-3 flex gap-2">
-              {showSplitAll && (
-                <button
-                  onClick={async () => {
-                    if (!currentPersonId) return;
-                    const toSplit = unclaimedByMe.map((item) => ({
-                      itemId: item.id,
-                      splitCount: session.group_size!,
-                    }));
-                    await claimMultipleItems(toSplit, currentPersonId);
-                    await refreshClaims();
-                  }}
-                  className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-                >
-                  Split all {session.group_size}-way
-                </button>
-              )}
+            <div className="mb-3">
               <button
                 onClick={async () => {
                   if (!currentPersonId) return;
-                  const toClaim = unclaimedByMe.map((item) => {
-                    const existing = claims.find((c) => c.item_id === item.id);
-                    return { itemId: item.id, splitCount: existing?.split_count || 1 };
-                  });
-                  await claimMultipleItems(toClaim, currentPersonId);
+                  const toSplit = unclaimedByMe.map((item) => ({
+                    itemId: item.id,
+                    splitCount: session.group_size!,
+                  }));
+                  await claimMultipleItems(toSplit, currentPersonId);
                   await refreshClaims();
                 }}
-                className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                className="w-full rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
               >
-                Claim all unclaimed
+                Split all {session.group_size}-way
               </button>
             </div>
           );
