@@ -9,6 +9,7 @@ interface SummaryProps {
     subtotal: number;
     tax: number;
     tip_amount: number;
+    misc_fee: number;
     host_venmo: string | null;
   };
   items: { id: string; name: string; price: number }[];
@@ -39,7 +40,8 @@ export function Summary({ session, items, people, claims, currentPersonId }: Sum
     people,
     session.subtotal,
     session.tax,
-    session.tip_amount
+    session.tip_amount,
+    session.misc_fee
   );
 
   // Check for unclaimed items
@@ -125,6 +127,12 @@ export function Summary({ session, items, people, claims, currentPersonId }: Sum
                     <span>Tip</span>
                     <span>${person.tipShare.toFixed(2)}</span>
                   </div>
+                  {person.miscFeeShare > 0 && (
+                    <div className="flex justify-between text-gray-500">
+                      <span>Misc Fee</span>
+                      <span>${person.miscFeeShare.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-1 text-lg font-bold text-gray-900">
                     <span>Total</span>
                     <span>${person.total.toFixed(2)}</span>

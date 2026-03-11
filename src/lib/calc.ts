@@ -15,6 +15,7 @@ export interface PersonTotal {
   subtotal: number;
   taxShare: number;
   tipShare: number;
+  miscFeeShare: number;
   total: number;
 }
 
@@ -23,7 +24,8 @@ export function calculateSplit(
   people: { id: string; name: string }[],
   receiptSubtotal: number,
   receiptTax: number,
-  tipAmount: number
+  tipAmount: number,
+  miscFeeAmount: number = 0
 ): PersonTotal[] {
   return people.map((person) => {
     const personClaims = claims.filter((c) => c.person_id === person.id);
@@ -41,7 +43,8 @@ export function calculateSplit(
     const proportion = receiptSubtotal > 0 ? subtotal / receiptSubtotal : 0;
     const taxShare = proportion * receiptTax;
     const tipShare = proportion * tipAmount;
-    const total = subtotal + taxShare + tipShare;
+    const miscFeeShare = proportion * miscFeeAmount;
+    const total = subtotal + taxShare + tipShare + miscFeeShare;
 
     return {
       person_id: person.id,
@@ -50,6 +53,7 @@ export function calculateSplit(
       subtotal: Math.round(subtotal * 100) / 100,
       taxShare: Math.round(taxShare * 100) / 100,
       tipShare: Math.round(tipShare * 100) / 100,
+      miscFeeShare: Math.round(miscFeeShare * 100) / 100,
       total: Math.round(total * 100) / 100,
     };
   });

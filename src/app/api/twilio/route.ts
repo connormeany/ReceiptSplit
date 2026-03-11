@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
         subtotal: parsed.subtotal,
         tax: parsed.tax,
         tip_amount: parsed.tip,
+        misc_fee: parsed.misc_fee || 0,
         total: parsed.total,
         status: "active",
       })
