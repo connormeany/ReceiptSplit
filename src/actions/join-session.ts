@@ -31,7 +31,7 @@ export async function joinSession(sessionId: string, name: string) {
       name: name.trim(),
       color: COLORS[colorIndex],
     })
-    .select("id, name, color, is_host")
+    .select("id, name, color, is_host, is_done")
     .single();
 
   if (error) {

@@ -29,6 +29,7 @@ create table people (
   name text not null,
   color text not null,
   is_host boolean default false,
+  is_done boolean default false,
   created_at timestamptz default now()
 );
 

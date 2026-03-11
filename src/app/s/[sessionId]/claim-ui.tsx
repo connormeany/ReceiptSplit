@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { joinSession } from "@/actions/join-session";
-import { claimItem, unclaimItem } from "@/actions/claim-item";
+import { claimItem, unclaimItem, claimMultipleItems, markDone } from "@/actions/claim-item";
 import { confirmReview } from "@/actions/confirm-review";
 import { ItemCard } from "@/components/item-card";
 import { VenmoButton } from "@/components/venmo-button";
 import { calculateSplit, type ClaimWithItem } from "@/lib/calc";
+import { QRCodeSVG } from "qrcode.react";
 
 interface Session {
   id: string;
@@ -34,6 +35,7 @@ interface Person {
   name: string;
   color: string;
   is_host: boolean;
+  is_done: boolean;
 }
 
 interface Claim {
@@ -449,6 +451,26 @@ export function ClaimUI({
                 />
               </div>
             </div>
+            <div className="flex justify-end gap-2">
+              {[15, 18, 20, 25].map((pct) => {
+                const tipVal = Math.round(reviewItemsSum * pct) / 100;
+                const isActive = Math.abs(reviewTip - tipVal) < 0.01;
+                return (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => setReviewTipStr(tipVal.toFixed(2))}
+                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                      isActive
+                        ? "border-blue-400 bg-blue-50 text-blue-600"
+                        : "border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600"
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                );
+              })}
+            </div>
             <div className="flex items-center justify-between border-t pt-2">
               <label className="text-sm font-medium text-gray-900">Total</label>
               <span className="text-sm font-medium text-gray-900">
@@ -605,21 +627,38 @@ export function ClaimUI({
               <p className="mb-6 text-gray-500">
                 Send this link to your friends so they can claim their items and pay you.
               </p>
-              <div className="mb-4 rounded-lg bg-gray-50 p-3">
-                <p className="break-all text-sm text-gray-700">
-                  {typeof window !== "undefined" ? window.location.href : ""}
-                </p>
+              <div className="mb-4 flex justify-center">
+                <QRCodeSVG
+                  value={typeof window !== "undefined" ? window.location.href : ""}
+                  size={160}
+                  level="M"
+                />
               </div>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-                className="mb-4 w-full rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600"
-              >
-                {copied ? "Copied!" : "Copy Link"}
-              </button>
+              <div className="mb-4 flex gap-2">
+                {typeof navigator !== "undefined" && navigator.share && (
+                  <button
+                    onClick={() => {
+                      navigator.share({
+                        title: `${session.restaurant_name || "Split Split"} — claim your items`,
+                        url: window.location.href,
+                      }).catch(() => {});
+                    }}
+                    className="flex-1 rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600"
+                  >
+                    Share Link
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex-1 rounded-lg bg-gray-100 py-3 font-semibold text-gray-700 transition hover:bg-gray-200"
+                >
+                  {copied ? "Copied!" : "Copy Link"}
+                </button>
+              </div>
               <button
                 onClick={() => setStep("claim")}
                 className="text-sm text-gray-500 hover:text-gray-700"
@@ -757,14 +796,80 @@ export function ClaimUI({
           {people.map((p) => (
             <span
               key={p.id}
-              className="rounded-full px-3 py-1 text-sm font-medium text-white"
+              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-white"
               style={{ backgroundColor: p.color }}
             >
+              {p.is_done && (
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
               {p.name}
               {p.is_host && " (host)"}
             </span>
           ))}
         </div>
+
+        {/* Progress */}
+        {(() => {
+          const claimedCount = items.filter((item) => claims.some((c) => c.item_id === item.id)).length;
+          return (
+            <div className="mb-3">
+              <div className="mb-1 flex justify-between text-xs text-gray-500">
+                <span>{claimedCount} of {items.length} items claimed</span>
+                {claimedCount === items.length && <span className="text-green-600 font-medium">All claimed!</span>}
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-gray-200">
+                <div
+                  className="h-1.5 rounded-full bg-blue-500 transition-all"
+                  style={{ width: `${items.length > 0 ? (claimedCount / items.length) * 100 : 0}%` }}
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Quick actions */}
+        {(() => {
+          const unclaimedByMe = items.filter((item) => !claims.some((c) => c.item_id === item.id && c.person_id === currentPersonId));
+          const hasUnclaimed = unclaimedByMe.length > 0;
+          const showSplitAll = session.group_size && session.group_size >= 2;
+          if (!hasUnclaimed) return null;
+          return (
+            <div className="mb-3 flex gap-2">
+              {showSplitAll && (
+                <button
+                  onClick={async () => {
+                    if (!currentPersonId) return;
+                    const toSplit = unclaimedByMe.map((item) => ({
+                      itemId: item.id,
+                      splitCount: session.group_size!,
+                    }));
+                    await claimMultipleItems(toSplit, currentPersonId);
+                    await refreshClaims();
+                  }}
+                  className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                >
+                  Split all {session.group_size}-way
+                </button>
+              )}
+              <button
+                onClick={async () => {
+                  if (!currentPersonId) return;
+                  const toClaim = unclaimedByMe.map((item) => {
+                    const existing = claims.find((c) => c.item_id === item.id);
+                    return { itemId: item.id, splitCount: existing?.split_count || 1 };
+                  });
+                  await claimMultipleItems(toClaim, currentPersonId);
+                  await refreshClaims();
+                }}
+                className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+              >
+                Claim all unclaimed
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Items */}
         <div className="space-y-3">
@@ -809,8 +914,21 @@ export function ClaimUI({
       {/* Fixed bottom Done button */}
       <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4">
         <div className="mx-auto max-w-lg">
+          {myClaims.length > 0 && (() => {
+            const myTotal = getMyTotal();
+            return myTotal && myTotal.total > 0 ? (
+              <p className="mb-2 text-center text-sm text-gray-500">
+                Your total: <span className="font-semibold text-gray-900">${myTotal.total.toFixed(2)}</span>
+              </p>
+            ) : null;
+          })()}
           <button
-            onClick={() => setStep("done")}
+            onClick={async () => {
+              if (currentPersonId) {
+                try { await markDone(currentPersonId); } catch {}
+              }
+              setStep("done");
+            }}
             disabled={myClaims.length === 0}
             className="w-full rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50"
           >
