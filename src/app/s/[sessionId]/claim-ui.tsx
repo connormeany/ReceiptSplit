@@ -85,14 +85,17 @@ export function ClaimUI({
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Review state
+  // Review state — prices stored as strings for clean editing
   const [reviewItems, setReviewItems] = useState(
-    initialItems.map((item, i) => ({ ...item, sort_order: i }))
+    initialItems.map((item, i) => ({ ...item, priceStr: item.price.toFixed(2), sort_order: i }))
   );
-  const [reviewTax, setReviewTax] = useState(initialSession.tax);
-  const [reviewTip, setReviewTip] = useState(initialSession.tip_amount);
+  const [reviewTaxStr, setReviewTaxStr] = useState(initialSession.tax.toFixed(2));
+  const [reviewTipStr, setReviewTipStr] = useState(initialSession.tip_amount.toFixed(2));
   const [reviewRestaurant, setReviewRestaurant] = useState(initialSession.restaurant_name || "");
   const [confirming, setConfirming] = useState(false);
+
+  const reviewTax = parseFloat(reviewTaxStr) || 0;
+  const reviewTip = parseFloat(reviewTipStr) || 0;
 
   const currentPerson = people.find((p) => p.id === currentPersonId);
   const isHost = currentPerson?.is_host ?? false;
@@ -247,16 +250,17 @@ export function ClaimUI({
 
   // Review step: host verifies parsed items
   if (step === "review") {
-    const reviewItemsSum = reviewItems.reduce((sum, item) => sum + item.price, 0);
+    const reviewItemsSum = reviewItems.reduce((sum, item) => sum + (parseFloat(item.priceStr) || 0), 0);
 
     const handleConfirmReview = async () => {
       setConfirming(true);
       try {
-        const computedSubtotal = reviewItems.reduce((sum, item) => sum + item.price, 0);
+        const itemsForSave = reviewItems.map((item) => ({ ...item, price: parseFloat(item.priceStr) || 0 }));
+        const computedSubtotal = itemsForSave.reduce((sum, item) => sum + item.price, 0);
         const computedTotal = computedSubtotal + reviewTax + reviewTip;
         await confirmReview(
           session.id,
-          reviewItems,
+          itemsForSave,
           Math.round(computedSubtotal * 100) / 100,
           reviewTax,
           reviewTip,
@@ -352,12 +356,21 @@ export function ClaimUI({
                   <div className="flex items-center">
                     <span className="text-sm text-gray-400">$</span>
                     <input
-                      type="number"
-                      step="0.01"
-                      value={item.price}
+                      type="text"
+                      inputMode="decimal"
+                      value={item.priceStr}
                       onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
+                          const updated = [...reviewItems];
+                          updated[index] = { ...updated[index], priceStr: val };
+                          setReviewItems(updated);
+                        }
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      onBlur={() => {
                         const updated = [...reviewItems];
-                        updated[index] = { ...updated[index], price: parseFloat(e.target.value) || 0 };
+                        updated[index] = { ...updated[index], priceStr: (parseFloat(item.priceStr) || 0).toFixed(2) };
                         setReviewItems(updated);
                       }}
                       className="w-20 rounded border border-gray-200 px-2 py-1.5 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
@@ -381,7 +394,7 @@ export function ClaimUI({
               onClick={() => {
                 setReviewItems([
                   ...reviewItems,
-                  { id: undefined, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as any,
+                  { id: undefined, name: "", price: 0, priceStr: "0.00", quantity: 1, sort_order: reviewItems.length } as any,
                 ]);
               }}
               className="mt-2 w-full rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600"
@@ -401,10 +414,17 @@ export function ClaimUI({
               <div className="flex items-center">
                 <span className="text-sm text-gray-400">$</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={reviewTax}
-                  onChange={(e) => setReviewTax(parseFloat(e.target.value) || 0)}
+                  type="text"
+                  inputMode="decimal"
+                  value={reviewTaxStr}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
+                      setReviewTaxStr(val);
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={() => setReviewTaxStr((parseFloat(reviewTaxStr) || 0).toFixed(2))}
                   className="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -414,10 +434,17 @@ export function ClaimUI({
               <div className="flex items-center">
                 <span className="text-sm text-gray-400">$</span>
                 <input
-                  type="number"
-                  step="0.01"
-                  value={reviewTip}
-                  onChange={(e) => setReviewTip(parseFloat(e.target.value) || 0)}
+                  type="text"
+                  inputMode="decimal"
+                  value={reviewTipStr}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
+                      setReviewTipStr(val);
+                    }
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={() => setReviewTipStr((parseFloat(reviewTipStr) || 0).toFixed(2))}
                   className="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
                 />
               </div>
@@ -703,9 +730,9 @@ export function ClaimUI({
             {isHost && (
               <button
                 onClick={() => {
-                  setReviewItems(items.map((item, i) => ({ ...item, sort_order: i })));
-                  setReviewTax(session.tax);
-                  setReviewTip(session.tip_amount);
+                  setReviewItems(items.map((item, i) => ({ ...item, priceStr: item.price.toFixed(2), sort_order: i })));
+                  setReviewTaxStr(session.tax.toFixed(2));
+                  setReviewTipStr(session.tip_amount.toFixed(2));
                   setReviewRestaurant(session.restaurant_name || "");
                   setStep("review");
                 }}
