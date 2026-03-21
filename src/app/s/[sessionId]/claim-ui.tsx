@@ -828,7 +828,7 @@ export function ClaimUI({
                   await claimMultipleItems(toSplit, currentPersonId);
                   await refreshClaims();
                 }}
-                className="w-full rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                className="w-full rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Split all {session.group_size}-way
               </button>
