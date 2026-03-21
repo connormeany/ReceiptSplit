@@ -168,7 +168,7 @@ export function ItemCard({
                       setShowCustomInput(false);
                     }
                   }}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                  className="rounded-lg bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-100"
                 >
                   {isSplit ? `Split ${splitCount}-way` : "Split..."}
                 </button>
