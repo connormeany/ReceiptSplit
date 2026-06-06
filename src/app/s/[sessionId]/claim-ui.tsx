@@ -739,8 +739,8 @@ export function ClaimUI({
               <button
                 onClick={() => {
                   setReviewItems(items.map((item, i) => ({ ...item, sort_order: i })));
-                  setReviewTax(session.tax);
-                  setReviewTip(session.tip_amount);
+                  setReviewTaxStr(session.tax.toFixed(2));
+                  setReviewTipStr(session.tip_amount.toFixed(2));
                   setReviewMiscFee(session.misc_fee || 0);
                   setReviewRestaurant(session.restaurant_name || "");
                   setStep("review");

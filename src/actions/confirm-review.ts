@@ -16,6 +16,7 @@ export async function confirmReview(
   subtotal: number,
   tax: number,
   tip: number,
+  miscFee: number,
   total: number,
   restaurantName: string
 ) {
@@ -45,6 +46,7 @@ export async function confirmReview(
       subtotal,
       tax,
       tip_amount: tip,
+      misc_fee: miscFee,
       total,
       status: "active",
     })
