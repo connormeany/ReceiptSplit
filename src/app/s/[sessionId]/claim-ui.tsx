@@ -3,12 +3,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { getSupabaseClient } from "@/lib/supabase/client";
 import { joinSession } from "@/actions/join-session";
-import { claimItem, unclaimItem, claimMultipleItems, markDone } from "@/actions/claim-item";
+import { claimItem, unclaimItem } from "@/actions/claim-item";
 import { confirmReview } from "@/actions/confirm-review";
 import { ItemCard } from "@/components/item-card";
 import { VenmoButton } from "@/components/venmo-button";
 import { calculateSplit, type ClaimWithItem } from "@/lib/calc";
-import { QRCodeSVG } from "qrcode.react";
 
 interface Session {
   id: string;
@@ -16,6 +15,7 @@ interface Session {
   tax: number;
   total: number;
   tip_amount: number;
+  misc_fee: number;
   host_venmo: string | null;
   image_url: string | null;
   restaurant_name: string | null;
@@ -35,7 +35,6 @@ interface Person {
   name: string;
   color: string;
   is_host: boolean;
-  is_done: boolean;
 }
 
 interface Claim {
@@ -87,12 +86,13 @@ export function ClaimUI({
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
-  // Review state — prices stored as strings for clean editing
+  // Review state
   const [reviewItems, setReviewItems] = useState(
-    initialItems.map((item, i) => ({ ...item, priceStr: item.price.toFixed(2), sort_order: i }))
+    initialItems.map((item, i) => ({ ...item, sort_order: i }))
   );
   const [reviewTaxStr, setReviewTaxStr] = useState(initialSession.tax.toFixed(2));
   const [reviewTipStr, setReviewTipStr] = useState(initialSession.tip_amount.toFixed(2));
+  const [reviewMiscFee, setReviewMiscFee] = useState(initialSession.misc_fee || 0);
   const [reviewRestaurant, setReviewRestaurant] = useState(initialSession.restaurant_name || "");
   const [confirming, setConfirming] = useState(false);
 
@@ -108,9 +108,9 @@ export function ClaimUI({
     if (stored) {
       setCurrentPersonId(stored);
       const person = initialPeople.find((p) => p.id === stored);
-      // Auto-show review if host and no tip (likely pre-tip receipt photo), but not if already reviewed
-      const hasReviewed = localStorage.getItem(`reviewed-${session.id}`);
+      // Auto-show review if host and no tip (likely pre-tip receipt photo)
       const missingTipOrTax = !initialSession.tip_amount || !initialSession.tax;
+      const hasReviewed = localStorage.getItem(`reviewed-${session.id}`) === "true";
       const initialStep = person?.is_host && missingTipOrTax && !hasReviewed ? "review" : "claim";
       setStepRaw(initialStep);
       window.history.replaceState({ step: initialStep }, "");
@@ -228,7 +228,8 @@ export function ClaimUI({
       people,
       session.subtotal,
       session.tax,
-      session.tip_amount
+      session.tip_amount,
+      session.misc_fee
     );
   };
 
@@ -241,10 +242,11 @@ export function ClaimUI({
 
   if (session.status === "parsing") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
-          <p className="text-lg text-gray-600">Parsing receipt...</p>
+          <p className="mb-4 text-sm font-medium uppercase tracking-widest text-foreground/60 animate-pulse">
+            Parsing Receipt...
+          </p>
         </div>
       </div>
     );
@@ -252,36 +254,34 @@ export function ClaimUI({
 
   // Review step: host verifies parsed items
   if (step === "review") {
-    const reviewItemsSum = reviewItems.reduce((sum, item) => sum + (parseFloat(item.priceStr) || 0), 0);
+    const reviewItemsSum = reviewItems.reduce((sum, item) => sum + item.price, 0);
 
     const handleConfirmReview = async () => {
       setConfirming(true);
       try {
-        const itemsForSave = reviewItems.map((item) => ({ ...item, price: parseFloat(item.priceStr) || 0 }));
-        const computedSubtotal = itemsForSave.reduce((sum, item) => sum + item.price, 0);
-        const computedTotal = computedSubtotal + reviewTax + reviewTip;
+        const computedSubtotal = reviewItems.reduce((sum, item) => sum + item.price, 0);
+        const computedTotal = computedSubtotal + reviewTax + reviewTip + reviewMiscFee;
         await confirmReview(
           session.id,
-          itemsForSave,
+          reviewItems,
           Math.round(computedSubtotal * 100) / 100,
           reviewTax,
           reviewTip,
+          reviewMiscFee,
           Math.round(computedTotal * 100) / 100,
           reviewRestaurant
         );
-        // Mark as reviewed so we don't auto-show review again
         localStorage.setItem(`reviewed-${session.id}`, "true");
-        // Update local state and go to claim screen
         setSession((s) => ({
           ...s,
           subtotal: Math.round(computedSubtotal * 100) / 100,
           tax: reviewTax,
           tip_amount: reviewTip,
+          misc_fee: reviewMiscFee,
           total: Math.round(computedTotal * 100) / 100,
           restaurant_name: reviewRestaurant || null,
           status: "active",
         }));
-        // Reload to get new item IDs from the database
         window.location.reload();
       } catch {
         alert("Failed to save changes. Please try again.");
@@ -290,61 +290,53 @@ export function ClaimUI({
     };
 
     return (
-      <div className="min-h-screen bg-gray-50 pb-32">
-        <div className="sticky top-0 z-10 border-b bg-white px-4 py-3 shadow-sm">
+      <div className="min-h-screen pb-32">
+        <div className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur-sm px-4 py-4 shadow-sm">
           <div className="mx-auto flex max-w-lg items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-gray-900">Review Receipt</h1>
-              <p className="text-sm text-gray-500">
-                Check the parsed items and fix any errors
-              </p>
+              <h1 className="text-lg font-bold text-foreground ">Review Receipt</h1>
             </div>
             <button
               onClick={() => setStep("claim")}
-              className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+              className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm font-medium text-foreground/80 hover:bg-background transition-colors"
             >
-              Back
+              Cancel
             </button>
           </div>
         </div>
 
-        <div className="mx-auto max-w-lg px-4 py-4 space-y-4">
-          {/* Restaurant name */}
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">
-              Restaurant
+        <div className="mx-auto max-w-lg px-4 py-6 space-y-6">
+          <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-foreground/60">
+              Restaurant Name
             </label>
             <input
               type="text"
               value={reviewRestaurant}
               onChange={(e) => setReviewRestaurant(e.target.value)}
-              placeholder="Restaurant name"
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+              className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
             />
+            {session.image_url && (
+              <a
+                href={session.image_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-block text-xs font-medium text-foreground/70 underline hover:text-foreground"
+              >
+                View Original Receipt
+              </a>
+            )}
           </div>
 
-          {/* View receipt link */}
-          {session.image_url && (
-            <a
-              href={session.image_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200"
-            >
-              View Original Receipt
-            </a>
-          )}
-
-          {/* Items */}
-          <div>
-            <div className="mb-2">
-              <label className="text-sm font-medium text-gray-700">
-                Items
+          <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
+            <div className="mb-4 border-b border-border pb-3">
+              <label className="text-xs font-semibold uppercase tracking-wider text-foreground/60">
+                Items List
               </label>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {reviewItems.map((item, index) => (
-                <div key={index} className="flex items-center gap-2 rounded-lg bg-white p-3 shadow-sm">
+                <div key={index} className="flex items-center gap-3">
                   <input
                     type="text"
                     value={item.name}
@@ -353,39 +345,30 @@ export function ClaimUI({
                       updated[index] = { ...updated[index], name: e.target.value };
                       setReviewItems(updated);
                     }}
-                    className="min-w-0 flex-1 rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                    className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
-                  <div className="flex items-center">
-                    <span className="text-sm text-gray-400">$</span>
+                  <div className="relative flex w-24 items-center">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-sm text-foreground/60">$</span>
                     <input
-                      type="text"
-                      inputMode="decimal"
-                      value={item.priceStr}
+                      type="number"
+                      step="0.01"
+                      value={item.price}
                       onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
-                          const updated = [...reviewItems];
-                          updated[index] = { ...updated[index], priceStr: val };
-                          setReviewItems(updated);
-                        }
-                      }}
-                      onFocus={(e) => e.target.select()}
-                      onBlur={() => {
                         const updated = [...reviewItems];
-                        updated[index] = { ...updated[index], priceStr: (parseFloat(item.priceStr) || 0).toFixed(2) };
+                        updated[index] = { ...updated[index], price: parseFloat(e.target.value) || 0 };
                         setReviewItems(updated);
                       }}
-                      className="w-20 rounded border border-gray-200 px-2 py-1.5 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                      className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1.5 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <button
                     onClick={() => {
                       setReviewItems(reviewItems.filter((_, i) => i !== index));
                     }}
-                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                    className="flex h-8 w-8 items-center justify-center rounded-md text-foreground/50 hover:bg-red-50 hover:text-red-600"
                     title="Remove item"
                   >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -396,25 +379,24 @@ export function ClaimUI({
               onClick={() => {
                 setReviewItems([
                   ...reviewItems,
-                  { id: undefined, name: "", price: 0, priceStr: "0.00", quantity: 1, sort_order: reviewItems.length } as any,
+                  { id: undefined, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as any,
                 ]);
               }}
-              className="mt-2 w-full rounded-lg border-2 border-dashed border-gray-300 py-2 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-600"
+              className="mt-4 w-full rounded-md border border-dashed border-border py-2.5 text-sm font-medium text-foreground/70 hover:border-border/50 hover:bg-background transition-colors"
             >
-              + Add item
+              + Add Item
             </button>
           </div>
 
-          {/* Totals */}
-          <div className="space-y-2 rounded-lg bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-gray-600">Subtotal</label>
-              <span className="text-sm text-gray-900">${reviewItemsSum.toFixed(2)}</span>
+          <div className="rounded-lg border border-border bg-surface p-5 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <label className="text-sm font-medium text-foreground/70">Subtotal</label>
+              <span className="font-mono text-sm font-medium text-foreground">${reviewItemsSum.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-gray-600">Tax</label>
-              <div className="flex items-center">
-                <span className="text-sm text-gray-400">$</span>
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <label className="text-sm font-medium text-foreground/70">Tax</label>
+              <div className="relative flex w-24 items-center">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-sm text-foreground/60">$</span>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -427,14 +409,14 @@ export function ClaimUI({
                   }}
                   onFocus={(e) => e.target.select()}
                   onBlur={() => setReviewTaxStr((parseFloat(reviewTaxStr) || 0).toFixed(2))}
-                  className="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
-            <div className="flex items-center justify-between">
-              <label className="text-sm text-gray-600">Tip</label>
-              <div className="flex items-center">
-                <span className="text-sm text-gray-400">$</span>
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <label className="text-sm font-medium text-foreground/70">Tip</label>
+              <div className="relative flex w-24 items-center">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-sm text-foreground/60">$</span>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -447,55 +429,40 @@ export function ClaimUI({
                   }}
                   onFocus={(e) => e.target.select()}
                   onBlur={() => setReviewTipStr((parseFloat(reviewTipStr) || 0).toFixed(2))}
-                  className="w-24 rounded border border-gray-200 px-2 py-1 text-right text-sm text-gray-900 focus:border-blue-500 focus:outline-none"
+                  className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              {[15, 18, 20, 25].map((pct) => {
-                const tipVal = Math.round(reviewItemsSum * pct) / 100;
-                const isActive = Math.abs(reviewTip - tipVal) < 0.01;
-                return (
-                  <button
-                    key={pct}
-                    type="button"
-                    onClick={() => setReviewTipStr(tipVal.toFixed(2))}
-                    className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                      isActive
-                        ? "border-blue-400 bg-blue-50 text-blue-600"
-                        : "border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600"
-                    }`}
-                  >
-                    {pct}%
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <label className="text-sm font-medium text-foreground/70">Misc Fee</label>
+              <div className="relative flex w-24 items-center">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-mono text-sm text-foreground/60">$</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={reviewMiscFee}
+                  onChange={(e) => setReviewMiscFee(parseFloat(e.target.value) || 0)}
+                  className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
             </div>
-            <div className="flex items-center justify-between border-t pt-2">
-              <label className="text-sm font-medium text-gray-900">Total</label>
-              <span className="text-sm font-medium text-gray-900">
-                ${(reviewItemsSum + reviewTax + reviewTip).toFixed(2)}
+            <div className="flex items-center justify-between pt-1">
+              <label className="text-base font-bold text-foreground">Total</label>
+              <span className="font-mono text-base font-bold text-foreground">
+                ${(reviewItemsSum + reviewTax + reviewTip + reviewMiscFee).toFixed(2)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Fixed bottom confirm button */}
-        <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4">
+        <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe">
           <div className="mx-auto max-w-lg">
             <button
               onClick={handleConfirmReview}
               disabled={confirming || reviewItems.length === 0}
-              className="w-full rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50"
+              className="w-full rounded-md bg-primary py-3 text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
             >
-              {confirming ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Saving...
-                </span>
-              ) : (
-                "Looks Good — Start Splitting"
-              )}
+              {confirming ? "Saving..." : "Save & Start Splitting"}
             </button>
           </div>
         </div>
@@ -503,53 +470,63 @@ export function ClaimUI({
     );
   }
 
-  // Step 1: Join (friends only — host skips this)
+  // Step 1: Join
   if (step === "join") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
-          <h1 className="mb-1 text-2xl font-bold text-gray-900">
-            Split Split
-          </h1>
-          {session.restaurant_name && (
-            <p className="mb-1 text-lg font-medium text-gray-700">{session.restaurant_name}</p>
-          )}
-          <p className="mb-6 text-gray-500">
-            {items.length} items &middot; ${session.total?.toFixed(2)} total
-          </p>
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 shadow-sm">
+          <div className="mb-6 text-center">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground ">
+              Split Split
+            </h1>
+            {session.restaurant_name && (
+              <p className="mt-1 text-sm font-medium text-foreground/70">
+                {session.restaurant_name}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-foreground/60">
+              Items: {items.length} &middot; Total: ${session.total?.toFixed(2)}
+            </p>
+          </div>
+
           {people.length > 0 && (
-            <div className="mb-6">
-              <p className="mb-2 text-sm text-gray-500">Already joined:</p>
+            <div className="mb-8 rounded-lg bg-background p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground/60">Joined</p>
               <div className="flex flex-wrap gap-2">
                 {people.map((p) => (
                   <span
                     key={p.id}
-                    className="rounded-full px-3 py-1 text-sm font-medium text-white"
-                    style={{ backgroundColor: p.color }}
+                    className="rounded-md border border-border bg-surface px-2.5 py-1 text-xs font-medium text-foreground/80"
                   >
                     {p.name}
-                    {p.is_host && " (host)"}
+                    {p.is_host && " (*)"}
                   </span>
                 ))}
               </div>
             </div>
           )}
-          <div className="space-y-3">
-            <input
-              type="text"
-              placeholder="Your name"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleJoin()}
-              className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              autoFocus
-            />
+
+          <div className="space-y-6">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground/80">
+                Your Name
+              </label>
+              <input
+                type="text"
+                placeholder="Name"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+                className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+            </div>
             <button
               onClick={handleJoin}
               disabled={joining || !nameInput.trim()}
-              className="w-full rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50"
+              className="w-full rounded-md bg-primary py-3 text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
             >
-              {joining ? "Joining..." : "Join"}
+              {joining ? "Joining..." : "Join Split"}
             </button>
           </div>
         </div>
@@ -568,116 +545,100 @@ export function ClaimUI({
     const PersonBreakdown = ({ total, label }: { total: typeof allTotals[0]; label?: string }) => {
       const person = people.find((p) => p.id === total.person_id);
       return (
-        <div className="text-left">
+        <div className="rounded-lg border border-border bg-surface p-5 shadow-sm">
           {label ? (
-            <p className="mb-2 text-sm font-medium text-gray-500">{label}</p>
+            <p className="mb-4 border-b border-border/50 pb-3 text-sm font-bold text-foreground">{label}</p>
           ) : person && (
-            <div className="mb-2 flex items-center gap-2">
-              <span
-                className="inline-block h-3 w-3 rounded-full"
-                style={{ backgroundColor: person.color }}
-              />
-              <span className="text-sm font-medium text-gray-700">{person.name}</span>
+            <div className="mb-4 border-b border-border/50 pb-3">
+              <span className="text-sm font-bold text-foreground">{person.name}</span>
             </div>
           )}
-          <ul className="space-y-1 text-sm text-gray-600">
+          <ul className="space-y-2 text-sm text-foreground/80">
             {total.items.map((item, i) => (
-              <li key={i} className="flex justify-between">
+              <li key={i} className="flex justify-between items-end border-b border-border/50 border-dashed pb-1">
                 <span>
                   {item.name}
                   {item.custom_fraction ? (
-                    <span className="ml-1 text-gray-400">({item.custom_fraction})</span>
+                    <span className="ml-1 text-xs text-foreground/50">({item.custom_fraction})</span>
                   ) : item.custom_amount != null ? (
-                    <span className="ml-1 text-gray-400">(custom)</span>
+                    <span className="ml-1 text-xs text-foreground/50">(cust)</span>
                   ) : item.split_count > 1 ? (
-                    <span className="ml-1 text-gray-400">(1/{item.split_count})</span>
+                    <span className="ml-1 text-xs text-foreground/50">(1/{item.split_count})</span>
                   ) : null}
                 </span>
-                <span>${item.share.toFixed(2)}</span>
+                <span className="font-mono font-medium">${item.share.toFixed(2)}</span>
               </li>
             ))}
           </ul>
-          <div className="mt-2 space-y-1 border-t pt-2 text-sm">
-            <div className="flex justify-between text-gray-500">
-              <span>Subtotal</span><span>${total.subtotal.toFixed(2)}</span>
+          <div className="mt-4 space-y-1.5 text-sm text-foreground/70">
+            <div className="flex justify-between">
+              <span>Subtotal</span><span className="font-mono">${total.subtotal.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-500">
-              <span>Tax</span><span>${total.taxShare.toFixed(2)}</span>
+            <div className="flex justify-between">
+              <span>Tax</span><span className="font-mono">${total.taxShare.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-gray-500">
-              <span>Tip</span><span>${total.tipShare.toFixed(2)}</span>
+            <div className="flex justify-between">
+              <span>Tip</span><span className="font-mono">${total.tipShare.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between pt-1 font-bold text-gray-900">
-              <span>Total</span><span>${total.total.toFixed(2)}</span>
+            {total.miscFeeShare > 0 && (
+              <div className="flex justify-between">
+                <span>Misc Fee</span><span className="font-mono">${total.miscFeeShare.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="mt-4 flex justify-between border-t border-border pt-3 text-base font-bold text-foreground">
+              <span>Total</span><span className="font-mono">${total.total.toFixed(2)}</span>
             </div>
           </div>
         </div>
       );
     };
 
-    // Host done screen — show share link
     if (isHost) {
       return (
-        <div className="min-h-screen bg-gray-50 px-4 py-8">
-          <div className="mx-auto w-full max-w-sm space-y-4">
-            <div className="rounded-2xl bg-white p-8 shadow-lg text-center">
-              <h1 className="mb-2 text-2xl font-bold text-gray-900">
-                All set!
+        <div className="min-h-screen pb-32 px-4 py-8">
+          <div className="mx-auto w-full max-w-md space-y-6">
+            <div className="rounded-xl border border-border bg-surface p-6 shadow-sm text-center">
+              <h1 className="mb-1 text-2xl font-bold tracking-tight text-foreground ">
+                Finished
               </h1>
-              <p className="mb-6 text-gray-500">
-                Send this link to your friends so they can claim their items and pay you.
+              <p className="mb-6 text-sm text-foreground/60">
+                Distribute this link to your party
               </p>
-              <div className="mb-4 flex justify-center">
-                <QRCodeSVG
-                  value={typeof window !== "undefined" ? window.location.href : ""}
-                  size={160}
-                  level="M"
-                />
-              </div>
-              <div className="mb-4 flex gap-2">
-                {typeof navigator !== "undefined" && navigator.share && (
-                  <button
-                    onClick={() => {
-                      navigator.share({
-                        title: `${session.restaurant_name || "Split Split"} — claim your items`,
-                        url: window.location.href,
-                      }).catch(() => {});
-                    }}
-                    className="flex-1 rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600"
-                  >
-                    Share Link
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(window.location.href);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
-                  }}
-                  className="flex-1 rounded-lg bg-gray-100 py-3 font-semibold text-gray-700 transition hover:bg-gray-200"
-                >
-                  {copied ? "Copied!" : "Copy Link"}
-                </button>
+
+              <div className="mb-5 rounded-md border border-border bg-background p-3">
+                <p className="truncate font-mono text-xs font-medium text-foreground/80 text-left">
+                  {typeof window !== "undefined" ? window.location.href : ""}
+                </p>
               </div>
               <button
+                onClick={() => {
+                  navigator.clipboard.writeText(window.location.href);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="mb-5 w-full rounded-md bg-primary py-3 text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-primary/90"
+              >
+                {copied ? "Copied Link!" : "Copy Link"}
+              </button>
+
+              <button
                 onClick={() => setStep("claim")}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-xs font-medium text-foreground/60 underline hover:text-foreground transition-colors"
               >
                 Back to items
               </button>
 
               {myTotal && myTotal.items.length > 0 && (
-                <div className="mt-6 border-t pt-4">
-                  <PersonBreakdown total={myTotal} label="Your share" />
+                <div className="mt-8 text-left">
+                  <PersonBreakdown total={myTotal} label="Your Share" />
                 </div>
               )}
             </div>
 
-            {/* Everyone's breakdowns */}
             {otherTotals.length > 0 && (
-              <div className="rounded-2xl bg-white p-6 shadow-lg">
-                <h2 className="mb-4 text-sm font-semibold text-gray-900">Everyone&apos;s totals</h2>
-                <div className="space-y-5">
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold text-foreground pl-1">Ledger</h2>
+                <div className="space-y-4">
                   {otherTotals.map((total) => (
                     <PersonBreakdown key={total.person_id} total={total} />
                   ))}
@@ -689,49 +650,58 @@ export function ClaimUI({
       );
     }
 
-    // Friend done screen — show summary + Venmo button
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-8">
-        <div className="mx-auto w-full max-w-sm space-y-4">
-          <div className="rounded-2xl bg-white p-8 shadow-lg">
-            <h1 className="mb-1 text-2xl font-bold text-gray-900">
-              Your total
+      <div className="min-h-screen pb-32 px-4 py-8">
+        <div className="mx-auto w-full max-w-md space-y-6">
+          <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+            <h1 className="mb-1 text-2xl font-bold tracking-tight text-foreground text-center ">
+              Your Total
             </h1>
             {session.restaurant_name && (
-              <p className="mb-2 text-sm text-gray-500">{session.restaurant_name}</p>
+              <p className="mb-6 text-sm font-medium text-foreground/60 text-center">
+                {session.restaurant_name}
+              </p>
             )}
 
             {myTotal && myTotal.items.length > 0 ? (
               <>
                 <PersonBreakdown total={myTotal} />
-
-                <div className="mt-4">
-                  {session.host_venmo && (
-                    <VenmoButton
-                      venmoUsername={session.host_venmo}
-                      amount={myTotal.total}
-                      note={`${session.restaurant_name || "Split Split"} - ${currentPerson?.name}`}
-                    />
+                <div className="mt-6">
+                  {session.host_venmo ? (
+                    <div className="rounded-lg border border-[#008CFF]/20 bg-[#008CFF]/5 overflow-hidden">
+                      <VenmoButton
+                        venmoUsername={session.host_venmo}
+                        amount={myTotal.total}
+                        note={`${session.restaurant_name || "Split Split"} - ${currentPerson?.name}`}
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-border border-dashed bg-background p-4 text-center">
+                      <p className="text-xs font-medium text-foreground/60">No Venmo Provided</p>
+                    </div>
                   )}
                 </div>
               </>
             ) : (
-              <p className="mb-6 text-gray-500">You haven&apos;t claimed any items.</p>
+              <div className="rounded-lg border border-border border-dashed bg-background p-6 text-center">
+                <p className="text-sm font-medium text-foreground/70">No items claimed.</p>
+              </div>
             )}
 
-            <button
-              onClick={() => setStep("claim")}
-              className="mt-4 w-full text-sm text-gray-500 hover:text-gray-700"
-            >
-              Back to items
-            </button>
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => setStep("claim")}
+                className="text-xs font-medium text-foreground/60 underline hover:text-foreground transition-colors"
+              >
+                Back to items
+              </button>
+            </div>
           </div>
 
-          {/* Everyone's breakdowns */}
           {otherTotals.length > 0 && (
-            <div className="rounded-2xl bg-white p-6 shadow-lg">
-              <h2 className="mb-4 text-sm font-semibold text-gray-900">Everyone&apos;s totals</h2>
-              <div className="space-y-5">
+            <div className="space-y-4">
+              <h2 className="text-lg font-bold text-foreground pl-1">Ledger</h2>
+              <div className="space-y-4">
                 {otherTotals.map((total) => (
                   <PersonBreakdown key={total.person_id} total={total} />
                 ))}
@@ -745,104 +715,65 @@ export function ClaimUI({
 
   // Step 2: Claim items
   return (
-    <div className="min-h-screen bg-gray-50 pb-32">
-      {/* Header */}
-      <div className="sticky top-0 z-10 border-b bg-white px-4 py-3 shadow-sm">
+    <div className="min-h-screen pb-32">
+      <div className="sticky top-0 z-20 border-b border-border bg-surface/90 backdrop-blur-sm px-4 py-3 shadow-sm">
         <div className="mx-auto flex max-w-lg items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">
+          <div className="min-w-0 pr-4">
+            <h1 className="text-base font-bold text-foreground truncate ">
               {session.restaurant_name || "Split Split"}
             </h1>
-            <p className="text-sm text-gray-500">
-              Claim your items, {currentPerson?.name}
+            <p className="text-xs font-medium text-foreground/60 truncate">
+              Name: {currentPerson?.name}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {session.image_url && (
               <button
                 onClick={() => window.open(session.image_url!, "_blank")}
-                className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground/80 hover:bg-background transition-colors"
               >
-                View Receipt
+                Receipt
               </button>
             )}
             {isHost && (
               <button
                 onClick={() => {
-                  setReviewItems(items.map((item, i) => ({ ...item, priceStr: item.price.toFixed(2), sort_order: i })));
+                  setReviewItems(items.map((item, i) => ({ ...item, sort_order: i })));
                   setReviewTaxStr(session.tax.toFixed(2));
                   setReviewTipStr(session.tip_amount.toFixed(2));
+                  setReviewMiscFee(session.misc_fee || 0);
                   setReviewRestaurant(session.restaurant_name || "");
                   setStep("review");
                 }}
-                className="rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-200"
+                className="rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground/80 hover:bg-background transition-colors"
               >
-                Edit Items
+                Edit
               </button>
             )}
-            <span
-              className="rounded-full px-3 py-1 text-sm font-medium text-white"
-              style={{ backgroundColor: currentPerson?.color }}
-            >
-              {currentPerson?.name}
-            </span>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-lg px-4 py-4">
-        {/* People bar */}
-        <div className="mb-4 flex flex-wrap gap-2">
-          {people.map((p) => (
-            <span
-              key={p.id}
-              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium text-white"
-              style={{ backgroundColor: p.color }}
-            >
-              {p.is_done && (
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-              {p.name}
-              {p.is_host && " (host)"}
-            </span>
-          ))}
+      <div className="mx-auto max-w-lg px-4 py-6">
+        <div className="mb-6">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-foreground/60">Active Party</p>
+          <div className="flex flex-wrap gap-2">
+            {people.map((p) => (
+              <span
+                key={p.id}
+                className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${p.id === currentPersonId ? "border-primary bg-primary text-surface" : "border-border bg-surface text-foreground/80"
+                  }`}
+              >
+                {p.name}
+              </span>
+            ))}
+          </div>
         </div>
 
-        {/* Quick actions */}
-        {(() => {
-          const unclaimedByMe = items.filter((item) => !claims.some((c) => c.item_id === item.id && c.person_id === currentPersonId));
-          const hasUnclaimed = unclaimedByMe.length > 0;
-          const showSplitAll = session.group_size && session.group_size >= 2;
-          if (!hasUnclaimed || !showSplitAll || !isHost) return null;
-          return (
-            <div className="mb-3">
-              <button
-                onClick={async () => {
-                  if (!currentPersonId) return;
-                  const toSplit = unclaimedByMe.map((item) => ({
-                    itemId: item.id,
-                    splitCount: session.group_size!,
-                  }));
-                  await claimMultipleItems(toSplit, currentPersonId);
-                  await refreshClaims();
-                }}
-                className="w-full rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-100"
-              >
-                Split all {session.group_size}-way
-              </button>
-            </div>
-          );
-        })()}
-
-        {/* Items */}
         <div className="space-y-3">
           {items.map((item) => {
             const itemClaims = claims.filter((c) => c.item_id === item.id);
-            const myClaim = itemClaims.find(
-              (c) => c.person_id === currentPersonId
-            );
+            const myClaim = itemClaims.find((c) => c.person_id === currentPersonId);
 
             return (
               <ItemCard
@@ -858,46 +789,16 @@ export function ClaimUI({
             );
           })}
         </div>
-
-        {/* Receipt totals reference */}
-        <div className="mt-4 space-y-1 rounded-xl bg-white p-4 shadow-sm text-sm text-gray-500">
-          <div className="flex justify-between">
-            <span>Subtotal</span><span>${session.subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Tax</span><span>${session.tax.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Tip</span><span>${session.tip_amount.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between border-t pt-1 font-medium text-gray-900">
-            <span>Total</span><span>${session.total.toFixed(2)}</span>
-          </div>
-        </div>
       </div>
 
-      {/* Fixed bottom Done button */}
-      <div className="fixed bottom-0 left-0 right-0 border-t bg-white p-4">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-border bg-surface p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] pb-safe">
         <div className="mx-auto max-w-lg">
-          {myClaims.length > 0 && (() => {
-            const myTotal = getMyTotal();
-            return myTotal && myTotal.total > 0 ? (
-              <p className="mb-2 text-center text-sm text-gray-500">
-                Your total: <span className="font-semibold text-gray-900">${myTotal.total.toFixed(2)}</span>
-              </p>
-            ) : null;
-          })()}
           <button
-            onClick={async () => {
-              if (currentPersonId) {
-                try { await markDone(currentPersonId); } catch {}
-              }
-              setStep("done");
-            }}
+            onClick={() => setStep("done")}
             disabled={myClaims.length === 0}
-            className="w-full rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50"
+            className="w-full rounded-md bg-primary py-3.5 text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
           >
-            Done ({myClaims.length} item{myClaims.length !== 1 ? "s" : ""} claimed)
+            Finish ({myClaims.length} item{myClaims.length !== 1 ? "s" : ""} claimed)
           </button>
         </div>
       </div>
