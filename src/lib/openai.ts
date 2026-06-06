@@ -128,7 +128,7 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
         },
       ],
       max_completion_tokens: 1000,
-    } as any);
+    } as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
   } else if (type === "pdf") {
     const pdfDataUrl = await fetchPdfBase64(url);
     response = await getOpenAI().chat.completions.create({
@@ -147,11 +147,11 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
                 file_data: pdfDataUrl,
               },
             },
-          ] as any,
+          ] as unknown as OpenAI.Chat.ChatCompletionContentPart[],
         },
       ],
       max_completion_tokens: 1000,
-    } as any);
+    } as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
   } else {
     // Webpage — fetch HTML, extract text, send as text prompt
     const text = await fetchWebpageText(url);
@@ -235,7 +235,7 @@ Return the corrected full JSON in the same format.`;
             role: "user" as const,
             content: [
               { type: "file" as const, file: { filename: "receipt.pdf", file_data: await fetchPdfBase64(url) } },
-            ] as any,
+            ] as unknown as OpenAI.Chat.ChatCompletionContentPart[],
           },
           { role: "assistant" as const, content },
           { role: "user" as const, content: correctionMessage },
@@ -252,7 +252,7 @@ Return the corrected full JSON in the same format.`;
       response_format: { type: "json_object" },
       messages: retryMessages,
       max_completion_tokens: 1000,
-    } as any);
+    } as unknown as OpenAI.Chat.ChatCompletionCreateParamsNonStreaming);
 
     const retryContent = retryResponse.choices[0]?.message?.content;
     if (retryContent) {

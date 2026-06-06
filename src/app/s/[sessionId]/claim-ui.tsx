@@ -31,7 +31,7 @@ export function ClaimUI({
   initialClaims: Claim[];
 }) {
   const [session, setSession] = useState(initialSession);
-  const [items, setItems] = useState(initialItems);
+  const [items] = useState(initialItems);
   const [people, setPeople] = useState(initialPeople);
   const [claims, setClaims] = useState(initialClaims);
   const [currentPersonId, setCurrentPersonId] = useState<string | null>(null);
@@ -213,11 +213,6 @@ export function ClaimUI({
     );
   };
 
-  const getMyTotal = () => {
-    if (!currentPersonId) return null;
-    return getAllTotals().find((t) => t.person_id === currentPersonId) || null;
-  };
-
   const myClaims = claims.filter((c) => c.person_id === currentPersonId);
 
   if (session.status === "parsing") {
@@ -365,7 +360,7 @@ export function ClaimUI({
               onClick={() => {
                 setReviewItems([
                   ...reviewItems,
-                  { id: undefined, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as any,
+                  { id: undefined, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as unknown as Item & { sort_order: number },
                 ]);
               }}
               className="mt-4 w-full rounded-md border border-dashed border-border py-2.5 text-sm font-medium text-foreground/70 hover:border-border/50 hover:bg-background transition-colors"
@@ -593,12 +588,12 @@ export function ClaimUI({
 
               <div className="mb-5 rounded-md border border-border bg-background p-3">
                 <p className="truncate font-mono text-xs font-medium text-foreground/80 text-left">
-                  {typeof window !== "undefined" ? window.location.href : ""}
+                  {typeof window !== "undefined" ? window.location.href.replace("receipt-split-iota.vercel.app", "split-split.com") : ""}
                 </p>
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
+                  navigator.clipboard.writeText(window.location.href.replace("receipt-split-iota.vercel.app", "split-split.com"));
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
@@ -805,7 +800,7 @@ export function ClaimUI({
           <div className="w-full max-w-xs rounded-xl border border-border bg-surface p-6 shadow-lg text-center">
             <h2 className="text-lg font-bold text-foreground mb-4">Join Split</h2>
             <div className="mx-auto flex justify-center bg-white p-4 rounded-lg mb-4">
-              <QRCodeSVG value={typeof window !== "undefined" ? window.location.href : ""} size={200} />
+              <QRCodeSVG value={typeof window !== "undefined" ? window.location.href.replace("receipt-split-iota.vercel.app", "split-split.com") : ""} size={200} />
             </div>
             <button
               onClick={() => setShowQR(false)}

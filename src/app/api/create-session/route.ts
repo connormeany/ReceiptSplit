@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const parsed = await parseReceipt(imageUrl);
 
     // Insert items
-    const itemRows = parsed.items.map((item: any, index: number) => ({
+    const itemRows = parsed.items.map((item: { name: string; price: number; quantity: number }, index: number) => ({
       session_id: session.id,
       name: item.name,
       price: item.price,
