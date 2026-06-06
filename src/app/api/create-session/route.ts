@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       .from("sessions")
       .insert({
         status: "parsing",
-        image_url: imageUrl,
+        image_url: imageUrl || null,
         host_venmo: hostVenmo || null,
         group_size: groupSize || null,
       })
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const parsed = await parseReceipt(imageUrl);
 
     // Insert items
-    const itemRows = parsed.items.map((item, index) => ({
+    const itemRows = parsed.items.map((item: any, index: number) => ({
       session_id: session.id,
       name: item.name,
       price: item.price,

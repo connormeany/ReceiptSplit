@@ -13,6 +13,7 @@ export default function Home() {
   const [groupSize, setGroupSize] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -125,98 +126,73 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-6">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 font-sans text-foreground">
       <div className="w-full max-w-md">
-        <div className="mb-5 text-center">
-          <h1 className="text-4xl font-bold text-gray-900">
-            Split<span className="text-blue-500">Split</span>
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+            Split Split
           </h1>
-          <p className="mt-2 text-sm text-gray-400 animate-fade-in">
-            The easy way to split the bill
+          <p className="mt-2 text-sm text-foreground/70">
+            Create a new receipt session
           </p>
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow-lg">
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Your Name
-              </label>
-              <input
-                type="text"
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-            </div>
+        <div className="rounded-xl border border-border bg-surface p-8 shadow-sm">
+          <form onSubmit={handleSubmit} noValidate className="space-y-6">
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Your Venmo Username
-              </label>
-              <input
-                type="text"
-                placeholder="@yourname"
-                value={venmo}
-                onChange={(e) => setVenmo(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">
+                  Your Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jane Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                />
+              </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                Group Size <span className="font-normal text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="How many people?"
-                value={groupSize}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "");
-                  if (v === "" || (parseInt(v) >= 0 && parseInt(v) <= 40)) setGroupSize(v);
-                }}
-                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-            </div>
-
-            <div className="mt-2 rounded-xl bg-gray-100 p-4">
-              <p className="mb-3 text-sm font-semibold text-gray-800">
-                Add your receipt
-              </p>
-
-              <div className="space-y-3">
-                <div>
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Venmo Handle
+                  </label>
                   <input
-                    type="url"
-                    placeholder="Paste a receipt link (e.g. clover.com/p/...)"
-                    value={imageUrl}
-                    onChange={(e) => {
-                      setImageUrl(e.target.value);
-                      if (e.target.value.trim()) {
-                        setInputMode("link");
-                        setFile(null);
-                      }
-                    }}
-                    className={`w-full rounded-lg border px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 ${
-                      inputMode === "link" && imageUrl.trim()
-                        ? "border-blue-400 bg-white"
-                        : "border-gray-300 bg-white"
-                    }`}
+                    type="text"
+                    placeholder="@username"
+                    value={venmo}
+                    onChange={(e) => setVenmo(e.target.value)}
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
                   />
                 </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-gray-300" />
-                  <span className="text-xs font-medium text-gray-400">OR</span>
-                  <div className="h-px flex-1 bg-gray-300" />
+                <div className="w-24">
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Size
+                  </label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="20"
+                    placeholder="Number of people"
+                    value={groupSize}
+                    onChange={(e) => setGroupSize(e.target.value)}
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-mono text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                  />
                 </div>
+              </div>
+            </div>
 
+            <div className="pt-2">
+              <label className="mb-3 block text-sm font-medium text-foreground">
+                Receipt Image
+              </label>
+
+              <div className="space-y-4">
                 {file ? (
-                  <div className="flex items-center justify-between rounded-lg border-2 border-blue-400 bg-blue-50 px-4 py-4">
-                    <p className="text-sm text-blue-700 truncate">{file.name}</p>
+                  <div className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2.5">
+                    <p className="truncate text-sm font-medium text-foreground">{file.name}</p>
                     <button
                       type="button"
                       onClick={() => {
@@ -224,29 +200,57 @@ export default function Home() {
                         if (fileInputRef.current) fileInputRef.current.value = "";
                         if (cameraInputRef.current) cameraInputRef.current.value = "";
                       }}
-                      className="ml-2 text-sm text-gray-400 hover:text-gray-600"
+                      className="ml-3 text-xs font-medium text-foreground/60 hover:text-primary transition-colors"
                     >
-                      Clear
+                      Remove
                     </button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-1 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white px-3 py-5 transition hover:border-gray-400"
-                    >
-                      <p className="text-sm text-gray-500">Upload file</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => cameraInputRef.current?.click()}
-                      className="flex flex-1 cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-white px-3 py-5 transition hover:border-gray-400"
-                    >
-                      <p className="text-sm text-gray-500">Take photo</p>
-                    </button>
+                  <div className="flex flex-col gap-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="rounded-md border-2 border-dashed border-border bg-background px-4 py-6 text-center transition-colors hover:border-primary/50 hover:bg-surface"
+                      >
+                        <p className="text-sm font-medium text-foreground">Upload File</p>
+                        <p className="mt-1 text-[10px] text-foreground/60">Image or PDF</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="rounded-md border-2 border-dashed border-border bg-background px-4 py-6 text-center transition-colors hover:border-primary/50 hover:bg-surface"
+                      >
+                        <p className="text-sm font-medium text-foreground">Take Photo</p>
+                        <p className="mt-1 text-[10px] text-foreground/60">Camera</p>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-medium uppercase text-foreground/40 tracking-widest">OR</span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+
+                    <div>
+                      <input
+                        type="url"
+                        placeholder="Paste receipt link here..."
+                        value={imageUrl}
+                        onChange={(e) => {
+                          setImageUrl(e.target.value);
+                          if (e.target.value.trim()) {
+                            setInputMode("link");
+                            setFile(null);
+                          }
+                        }}
+                        className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"
+                      />
+                    </div>
                   </div>
                 )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -279,31 +283,26 @@ export default function Home() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading || !ready}
-              className="w-full rounded-lg bg-blue-500 py-3 font-semibold text-white transition hover:bg-blue-600 disabled:opacity-50"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  Parsing receipt...
-                </span>
-              ) : (
-                "Create Split"
-              )}
-            </button>
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading || !ready}
+                className="w-full rounded-md bg-primary py-2.5 text-sm font-semibold text-surface shadow-sm transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {loading ? "Processing..." : "Create Split"}
+              </button>
+            </div>
           </form>
 
           {error && (
-            <p className="mt-3 text-sm text-red-500">{error}</p>
+            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3">
+              <p className="text-center text-sm font-medium text-red-800">{error}</p>
+            </div>
           )}
         </div>
 
-        <div className="mt-8 space-y-3 text-center text-sm text-gray-400">
-          <p>1. Enter your info and receipt</p>
-          <p>2. Claim your items, then share the link</p>
-          <p>3. Friends claim theirs and pay you via Venmo</p>
+        <div className="mt-8 text-center text-xs text-foreground/50">
+          <p>Easily split the bill</p>
         </div>
       </div>
     </div>
