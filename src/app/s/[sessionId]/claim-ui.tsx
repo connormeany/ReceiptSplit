@@ -5,8 +5,10 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { joinSession } from "@/actions/join-session";
 import { claimItem, unclaimItem } from "@/actions/claim-item";
 import { confirmReview } from "@/actions/confirm-review";
+import { ItemCard } from "@/components/item-card";
 import { VenmoButton } from "@/components/venmo-button";
 import { calculateSplit, type ClaimWithItem } from "@/lib/calc";
+import { QRCodeSVG } from "qrcode.react";
 
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -37,6 +39,7 @@ export function ClaimUI({
   const [joining, setJoining] = useState(false);
   const [step, setStepRaw] = useState<Step>("join");
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   // Push browser history when navigating between steps
   const setStep = useCallback((newStep: Step) => {
@@ -460,7 +463,7 @@ export function ClaimUI({
         <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 shadow-sm">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-foreground ">
-              Split Split
+              Split <span className="text-foreground/40">Split</span>
             </h1>
             {session.restaurant_name && (
               <p className="mt-1 text-sm font-medium text-foreground/70">
@@ -703,7 +706,9 @@ export function ClaimUI({
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <div className="min-w-0 pr-4">
             <h1 className="text-base font-bold text-foreground truncate ">
-              {session.restaurant_name || "Split Split"}
+              {session.restaurant_name || (
+                <>Split <span className="text-foreground/40">Split</span></>
+              )}
             </h1>
             <p className="text-xs font-medium text-foreground/60 truncate">
               Name: {currentPerson?.name}
@@ -718,6 +723,15 @@ export function ClaimUI({
                 Receipt
               </button>
             )}
+            <button
+              onClick={() => setShowQR(true)}
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-surface text-foreground/80 hover:bg-background transition-colors"
+              title="Show QR Code"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+            </button>
             {isHost && (
               <button
                 onClick={() => {
@@ -785,6 +799,23 @@ export function ClaimUI({
           </button>
         </div>
       </div>
+
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xs rounded-xl border border-border bg-surface p-6 shadow-lg text-center">
+            <h2 className="text-lg font-bold text-foreground mb-4">Join Split</h2>
+            <div className="mx-auto flex justify-center bg-white p-4 rounded-lg mb-4">
+              <QRCodeSVG value={typeof window !== "undefined" ? window.location.href : ""} size={200} />
+            </div>
+            <button
+              onClick={() => setShowQR(false)}
+              className="w-full rounded-md border border-border bg-surface py-2.5 text-sm font-medium text-foreground hover:bg-background transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
