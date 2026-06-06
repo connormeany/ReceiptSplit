@@ -5,46 +5,15 @@ import { getSupabaseClient } from "@/lib/supabase/client";
 import { joinSession } from "@/actions/join-session";
 import { claimItem, unclaimItem } from "@/actions/claim-item";
 import { confirmReview } from "@/actions/confirm-review";
-import { ItemCard } from "@/components/item-card";
 import { VenmoButton } from "@/components/venmo-button";
 import { calculateSplit, type ClaimWithItem } from "@/lib/calc";
 
-interface Session {
-  id: string;
-  subtotal: number;
-  tax: number;
-  total: number;
-  tip_amount: number;
-  misc_fee: number;
-  host_venmo: string | null;
-  image_url: string | null;
-  restaurant_name: string | null;
-  group_size: number | null;
-  status: string;
-}
+import type { Database } from "@/lib/supabase/database.types";
 
-interface Item {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface Person {
-  id: string;
-  name: string;
-  color: string;
-  is_host: boolean;
-}
-
-interface Claim {
-  id: string;
-  item_id: string;
-  person_id: string;
-  split_count: number;
-  custom_amount: number | null;
-  custom_fraction: string | null;
-}
+type Session = Database["public"]["Tables"]["sessions"]["Row"];
+type Item = Database["public"]["Tables"]["items"]["Row"];
+type Person = Database["public"]["Tables"]["people"]["Row"];
+type Claim = Database["public"]["Tables"]["claims"]["Row"];
 
 type Step = "review" | "join" | "claim" | "done";
 
@@ -88,10 +57,10 @@ export function ClaimUI({
 
   // Review state
   const [reviewItems, setReviewItems] = useState(
-    initialItems.map((item, i) => ({ ...item, sort_order: i }))
+    initialItems.map((item, i) => ({ ...item, sort_order: item.sort_order ?? i }))
   );
-  const [reviewTaxStr, setReviewTaxStr] = useState(initialSession.tax.toFixed(2));
-  const [reviewTipStr, setReviewTipStr] = useState(initialSession.tip_amount.toFixed(2));
+  const [reviewTaxStr, setReviewTaxStr] = useState((initialSession.tax || 0).toFixed(2));
+  const [reviewTipStr, setReviewTipStr] = useState((initialSession.tip_amount || 0).toFixed(2));
   const [reviewMiscFee, setReviewMiscFee] = useState(initialSession.misc_fee || 0);
   const [reviewRestaurant, setReviewRestaurant] = useState(initialSession.restaurant_name || "");
   const [confirming, setConfirming] = useState(false);
@@ -176,7 +145,15 @@ export function ClaimUI({
       const person = await joinSession(session.id, nameInput);
       setCurrentPersonId(person.id);
       localStorage.setItem(`person-${session.id}`, person.id);
-      setPeople((prev) => [...prev, person]);
+      setPeople((prev) => [...prev, {
+      id: person.id,
+      session_id: session.id,
+      name: person.name,
+      color: person.color,
+      is_host: person.is_host,
+      is_done: person.is_done,
+      created_at: null,
+    }]);
       setStep("claim");
     } catch {
       alert("Failed to join. Please try again.");
@@ -209,11 +186,11 @@ export function ClaimUI({
     const itemMap = new Map(items.map((i) => [i.id, i]));
     const claimsWithItems: ClaimWithItem[] = claims
       .map((c) => {
-        const item = itemMap.get(c.item_id);
+        const item = c.item_id ? itemMap.get(c.item_id) : undefined;
         if (!item) return null;
         return {
-          item_id: c.item_id,
-          person_id: c.person_id,
+          item_id: c.item_id!,
+          person_id: c.person_id!,
           split_count: c.split_count,
           custom_amount: c.custom_amount,
           custom_fraction: c.custom_fraction,
@@ -226,10 +203,10 @@ export function ClaimUI({
     return calculateSplit(
       claimsWithItems,
       people,
-      session.subtotal,
-      session.tax,
-      session.tip_amount,
-      session.misc_fee
+      session.subtotal || 0,
+      session.tax || 0,
+      session.tip_amount || 0,
+      session.misc_fee || 0
     );
   };
 
@@ -335,15 +312,18 @@ export function ClaimUI({
               </label>
             </div>
             <div className="space-y-3">
-              {reviewItems.map((item, index) => (
-                <div key={index} className="flex items-center gap-3">
+              {reviewItems.map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
                   <input
                     type="text"
                     value={item.name}
                     onChange={(e) => {
                       const updated = [...reviewItems];
-                      updated[index] = { ...updated[index], name: e.target.value };
-                      setReviewItems(updated);
+                      const currentItem = updated[i];
+                      if (currentItem) {
+                        updated[i] = { ...currentItem, name: e.target.value };
+                        setReviewItems(updated);
+                      }
                     }}
                     className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
@@ -355,15 +335,18 @@ export function ClaimUI({
                       value={item.price}
                       onChange={(e) => {
                         const updated = [...reviewItems];
-                        updated[index] = { ...updated[index], price: parseFloat(e.target.value) || 0 };
-                        setReviewItems(updated);
+                        const currentItem = updated[i];
+                        if (currentItem) {
+                          updated[i] = { ...currentItem, price: parseFloat(e.target.value) || 0 };
+                          setReviewItems(updated);
+                        }
                       }}
                       className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1.5 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <button
                     onClick={() => {
-                      setReviewItems(reviewItems.filter((_, i) => i !== index));
+                      setReviewItems(reviewItems.filter((_, itemIndex) => itemIndex !== i));
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-md text-foreground/50 hover:bg-red-50 hover:text-red-600"
                     title="Remove item"
@@ -739,8 +722,8 @@ export function ClaimUI({
               <button
                 onClick={() => {
                   setReviewItems(items.map((item, i) => ({ ...item, sort_order: i })));
-                  setReviewTaxStr(session.tax.toFixed(2));
-                  setReviewTipStr(session.tip_amount.toFixed(2));
+                  setReviewTaxStr((session.tax || 0).toFixed(2));
+                  setReviewTipStr((session.tip_amount || 0).toFixed(2));
                   setReviewMiscFee(session.misc_fee || 0);
                   setReviewRestaurant(session.restaurant_name || "");
                   setStep("review");

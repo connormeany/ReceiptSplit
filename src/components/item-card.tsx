@@ -2,14 +2,20 @@
 
 import { useState } from "react";
 
+import type { Database } from "@/lib/supabase/database.types";
+
+type Item = Database["public"]["Tables"]["items"]["Row"];
+type Claim = Database["public"]["Tables"]["claims"]["Row"];
+type Person = Database["public"]["Tables"]["people"]["Row"];
+
 interface ItemCardProps {
- item: { id: string; name: string; price: number; quantity: number };
- claims: { id: string; item_id: string; person_id: string; split_count: number; custom_amount: number | null; custom_fraction: string | null }[];
- people: { id: string; name: string; color: string }[];
- myClaim: { id: string; split_count: number; custom_amount: number | null; custom_fraction: string | null } | null;
- groupSize: number | null;
- onClaim: (splitCount: number, customAmount?: number, customFraction?: string) => void;
- onUnclaim: () => void;
+  item: Item;
+  claims: Claim[];
+  people: Person[];
+  myClaim: Claim | null;
+  groupSize: number | null;
+  onClaim: (splitCount: number, customAmount?: number, customFraction?: string) => void;
+  onUnclaim: () => void;
 }
 
 export function ItemCard({

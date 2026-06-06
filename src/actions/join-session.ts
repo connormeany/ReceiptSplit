@@ -29,7 +29,7 @@ export async function joinSession(sessionId: string, name: string) {
     .insert({
       session_id: sessionId,
       name: name.trim(),
-      color: COLORS[colorIndex],
+      color: COLORS[colorIndex] ?? "#3B82F6",
     })
     .select("id, name, color, is_host, is_done")
     .single();
