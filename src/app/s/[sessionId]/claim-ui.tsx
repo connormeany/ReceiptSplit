@@ -360,7 +360,7 @@ export function ClaimUI({
               onClick={() => {
                 setReviewItems([
                   ...reviewItems,
-                  { id: undefined, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as unknown as Item & { sort_order: number },
+                  { id: undefined as unknown as string, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as unknown as Item & { sort_order: number },
                 ]);
               }}
               className="mt-4 w-full rounded-md border border-dashed border-border py-2.5 text-sm font-medium text-foreground/70 hover:border-border/50 hover:bg-background transition-colors"
