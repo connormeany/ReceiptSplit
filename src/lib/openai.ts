@@ -128,6 +128,7 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
         },
       ],
       max_completion_tokens: 1000,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
   } else if (type === "pdf") {
     const pdfDataUrl = await fetchPdfBase64(url);
@@ -147,10 +148,12 @@ export async function parseReceipt(url: string): Promise<ParsedReceipt> {
                 file_data: pdfDataUrl,
               },
             },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ] as any,
         },
       ],
       max_completion_tokens: 1000,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
   } else {
     // Webpage — fetch HTML, extract text, send as text prompt
@@ -235,6 +238,7 @@ Return the corrected full JSON in the same format.`;
             role: "user" as const,
             content: [
               { type: "file" as const, file: { filename: "receipt.pdf", file_data: await fetchPdfBase64(url) } },
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
             ] as any,
           },
           { role: "assistant" as const, content },
@@ -252,6 +256,7 @@ Return the corrected full JSON in the same format.`;
       response_format: { type: "json_object" },
       messages: retryMessages,
       max_completion_tokens: 1000,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
     const retryContent = retryResponse.choices[0]?.message?.content;

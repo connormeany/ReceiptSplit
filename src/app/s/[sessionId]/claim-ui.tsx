@@ -60,7 +60,7 @@ export function ClaimUI({
   initialClaims: Claim[];
 }) {
   const [session, setSession] = useState(initialSession);
-  const [items, setItems] = useState(initialItems);
+  const [items] = useState(initialItems);
   const [people, setPeople] = useState(initialPeople);
   const [claims, setClaims] = useState(initialClaims);
   const [currentPersonId, setCurrentPersonId] = useState<string | null>(null);
@@ -233,10 +233,7 @@ export function ClaimUI({
     );
   };
 
-  const getMyTotal = () => {
-    if (!currentPersonId) return null;
-    return getAllTotals().find((t) => t.person_id === currentPersonId) || null;
-  };
+
 
   const myClaims = claims.filter((c) => c.person_id === currentPersonId);
 
@@ -379,7 +376,7 @@ export function ClaimUI({
               onClick={() => {
                 setReviewItems([
                   ...reviewItems,
-                  { id: undefined, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as any,
+                  { id: undefined as unknown as string, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as unknown as Item & { sort_order: number },
                 ]);
               }}
               className="mt-4 w-full rounded-md border border-dashed border-border py-2.5 text-sm font-medium text-foreground/70 hover:border-border/50 hover:bg-background transition-colors"
