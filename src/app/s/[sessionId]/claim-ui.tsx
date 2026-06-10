@@ -116,30 +116,43 @@ export function ClaimUI({
 
   useEffect(() => {
     const supabase = getSupabaseClient();
+    const itemIds = items.map((i) => i.id);
 
-    const claimsChannel = supabase
-      .channel("claims-changes")
-      .on(
+    let channel = supabase.channel(`session-${session.id}`);
+
+    channel = channel.on(
+      "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
+      (payload) => {
+        if (payload.new && payload.new.status === "active" && session.status === "parsing") {
+          window.location.reload();
+        } else if (payload.new && payload.new.status === "error" && session.status === "parsing") {
+          alert("Failed to parse the receipt. Please try again.");
+          window.location.href = "/";
+        }
+      }
+    );
+
+    channel = channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "people", filter: `session_id=eq.${session.id}` },
+      () => refreshPeople()
+    );
+
+    if (itemIds.length > 0) {
+      channel = channel.on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "claims" },
+        { event: "*", schema: "public", table: "claims", filter: `item_id=in.(${itemIds.join(",")})` },
         () => refreshClaims()
-      )
-      .subscribe();
+      );
+    }
 
-    const peopleChannel = supabase
-      .channel("people-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "people" },
-        () => refreshPeople()
-      )
-      .subscribe();
+    channel.subscribe();
 
     return () => {
-      supabase.removeChannel(claimsChannel);
-      supabase.removeChannel(peopleChannel);
+      supabase.removeChannel(channel);
     };
-  }, [refreshClaims, refreshPeople]);
+  }, [refreshClaims, refreshPeople, session.id, items, session.status]);
 
   const handleJoin = async () => {
     if (!nameInput.trim()) return;

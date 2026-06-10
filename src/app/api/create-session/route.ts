@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { parseReceipt } from "@/lib/openai";
+import { after } from "next/server";
 
 export async function POST(request: NextRequest) {
   const { imageUrl, hostName, hostVenmo, groupSize } = await request.json();
@@ -51,49 +52,56 @@ export async function POST(request: NextRequest) {
       console.error("Host person creation failed:", personError);
     }
 
-    // Parse receipt
-    const parsed = await parseReceipt(imageUrl);
+    // Parse receipt asynchronously to prevent Vercel Serverless timeout
+    after(async () => {
+      try {
+        const parsed = await parseReceipt(imageUrl);
 
-    // Insert items
-    const itemRows = parsed.items.map((item: { name: string; price: number; quantity: number }, index: number) => ({
-      session_id: session.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      sort_order: index,
-    }));
+        // Insert items
+        const itemRows = parsed.items.map((item: { name: string; price: number; quantity: number }, index: number) => ({
+          session_id: session.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          sort_order: index,
+        }));
 
-    const { error: itemsError } = await supabase.from("items").insert(itemRows);
-    if (itemsError) {
-      console.error("Items insertion failed:", itemsError);
-    }
+        const { error: itemsError } = await supabase.from("items").insert(itemRows);
+        if (itemsError) {
+          console.error("Items insertion failed:", itemsError);
+        }
 
-    // Update session
-    const { error: updateError } = await supabase
-      .from("sessions")
-      .update({
-        restaurant_name: parsed.restaurant || null,
-        subtotal: parsed.subtotal,
-        tax: parsed.tax,
-        tip_amount: parsed.tip,
-        total: parsed.total,
-        status: "active",
-      })
-      .eq("id", session.id);
+        // Update session
+        const { error: updateError } = await supabase
+          .from("sessions")
+          .update({
+            restaurant_name: parsed.restaurant || null,
+            subtotal: parsed.subtotal,
+            tax: parsed.tax,
+            tip_amount: parsed.tip,
+            total: parsed.total,
+            status: "active",
+          })
+          .eq("id", session.id);
 
-    if (updateError) {
-      console.error("Session update failed:", updateError);
-    }
+        if (updateError) {
+          console.error("Session update failed:", updateError);
+        }
+      } catch (error) {
+        console.error("Async receipt parsing error:", error);
+        await supabase.from("sessions").update({ status: "error" }).eq("id", session.id);
+      }
+    });
 
     return NextResponse.json({
       sessionId: session.id,
       personId: person?.id,
     });
   } catch (error) {
-    console.error("Receipt processing error:", error);
+    console.error("Receipt setup error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { error: `Failed to parse receipt: ${message}` },
+      { error: `Failed to setup session: ${message}` },
       { status: 500 }
     );
   }
