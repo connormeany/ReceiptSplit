@@ -46,7 +46,6 @@ export async function confirmReview(
       subtotal,
       tax,
       tip_amount: tip,
-      misc_fee: miscFee,
       total,
       status: "active",
     })
