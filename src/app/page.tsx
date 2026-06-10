@@ -130,7 +130,7 @@ export default function Home() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            Split Split
+            Split <span className="text-foreground/40">Split</span>
           </h1>
           <p className="mt-2 text-sm text-foreground/70">
             Create a new receipt session

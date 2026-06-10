@@ -8,43 +8,14 @@ import { confirmReview } from "@/actions/confirm-review";
 import { ItemCard } from "@/components/item-card";
 import { VenmoButton } from "@/components/venmo-button";
 import { calculateSplit, type ClaimWithItem } from "@/lib/calc";
+import { QRCodeSVG } from "qrcode.react";
 
-interface Session {
-  id: string;
-  subtotal: number;
-  tax: number;
-  total: number;
-  tip_amount: number;
-  misc_fee: number;
-  host_venmo: string | null;
-  image_url: string | null;
-  restaurant_name: string | null;
-  group_size: number | null;
-  status: string;
-}
+import type { Database } from "@/lib/supabase/database.types";
 
-interface Item {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-}
-
-interface Person {
-  id: string;
-  name: string;
-  color: string;
-  is_host: boolean;
-}
-
-interface Claim {
-  id: string;
-  item_id: string;
-  person_id: string;
-  split_count: number;
-  custom_amount: number | null;
-  custom_fraction: string | null;
-}
+type Session = Database["public"]["Tables"]["sessions"]["Row"];
+type Item = Database["public"]["Tables"]["items"]["Row"];
+type Person = Database["public"]["Tables"]["people"]["Row"];
+type Claim = Database["public"]["Tables"]["claims"]["Row"];
 
 type Step = "review" | "join" | "claim" | "done";
 
@@ -68,6 +39,7 @@ export function ClaimUI({
   const [joining, setJoining] = useState(false);
   const [step, setStepRaw] = useState<Step>("join");
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   // Push browser history when navigating between steps
   const setStep = useCallback((newStep: Step) => {
@@ -88,10 +60,10 @@ export function ClaimUI({
 
   // Review state
   const [reviewItems, setReviewItems] = useState(
-    initialItems.map((item, i) => ({ ...item, sort_order: i }))
+    initialItems.map((item, i) => ({ ...item, sort_order: item.sort_order ?? i }))
   );
-  const [reviewTaxStr, setReviewTaxStr] = useState(initialSession.tax.toFixed(2));
-  const [reviewTipStr, setReviewTipStr] = useState(initialSession.tip_amount.toFixed(2));
+  const [reviewTaxStr, setReviewTaxStr] = useState((initialSession.tax || 0).toFixed(2));
+  const [reviewTipStr, setReviewTipStr] = useState((initialSession.tip_amount || 0).toFixed(2));
   const [reviewMiscFee, setReviewMiscFee] = useState(initialSession.misc_fee || 0);
   const [reviewRestaurant, setReviewRestaurant] = useState(initialSession.restaurant_name || "");
   const [confirming, setConfirming] = useState(false);
@@ -176,7 +148,15 @@ export function ClaimUI({
       const person = await joinSession(session.id, nameInput);
       setCurrentPersonId(person.id);
       localStorage.setItem(`person-${session.id}`, person.id);
-      setPeople((prev) => [...prev, person]);
+      setPeople((prev) => [...prev, {
+      id: person.id,
+      session_id: session.id,
+      name: person.name,
+      color: person.color,
+      is_host: person.is_host,
+      is_done: person.is_done,
+      created_at: null,
+    }]);
       setStep("claim");
     } catch {
       alert("Failed to join. Please try again.");
@@ -209,11 +189,11 @@ export function ClaimUI({
     const itemMap = new Map(items.map((i) => [i.id, i]));
     const claimsWithItems: ClaimWithItem[] = claims
       .map((c) => {
-        const item = itemMap.get(c.item_id);
+        const item = c.item_id ? itemMap.get(c.item_id) : undefined;
         if (!item) return null;
         return {
-          item_id: c.item_id,
-          person_id: c.person_id,
+          item_id: c.item_id!,
+          person_id: c.person_id!,
           split_count: c.split_count,
           custom_amount: c.custom_amount,
           custom_fraction: c.custom_fraction,
@@ -226,14 +206,12 @@ export function ClaimUI({
     return calculateSplit(
       claimsWithItems,
       people,
-      session.subtotal,
-      session.tax,
-      session.tip_amount,
-      session.misc_fee
+      session.subtotal || 0,
+      session.tax || 0,
+      session.tip_amount || 0,
+      session.misc_fee || 0
     );
   };
-
-
 
   const myClaims = claims.filter((c) => c.person_id === currentPersonId);
 
@@ -332,15 +310,18 @@ export function ClaimUI({
               </label>
             </div>
             <div className="space-y-3">
-              {reviewItems.map((item, index) => (
-                <div key={index} className="flex items-center gap-3">
+              {reviewItems.map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
                   <input
                     type="text"
                     value={item.name}
                     onChange={(e) => {
                       const updated = [...reviewItems];
-                      updated[index] = { ...updated[index], name: e.target.value };
-                      setReviewItems(updated);
+                      const currentItem = updated[i];
+                      if (currentItem) {
+                        updated[i] = { ...currentItem, name: e.target.value };
+                        setReviewItems(updated);
+                      }
                     }}
                     className="min-w-0 flex-1 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                   />
@@ -352,15 +333,18 @@ export function ClaimUI({
                       value={item.price}
                       onChange={(e) => {
                         const updated = [...reviewItems];
-                        updated[index] = { ...updated[index], price: parseFloat(e.target.value) || 0 };
-                        setReviewItems(updated);
+                        const currentItem = updated[i];
+                        if (currentItem) {
+                          updated[i] = { ...currentItem, price: parseFloat(e.target.value) || 0 };
+                          setReviewItems(updated);
+                        }
                       }}
                       className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1.5 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
                   <button
                     onClick={() => {
-                      setReviewItems(reviewItems.filter((_, i) => i !== index));
+                      setReviewItems(reviewItems.filter((_, itemIndex) => itemIndex !== i));
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-md text-foreground/50 hover:bg-red-50 hover:text-red-600"
                     title="Remove item"
@@ -474,7 +458,7 @@ export function ClaimUI({
         <div className="w-full max-w-md rounded-xl border border-border bg-surface p-8 shadow-sm">
           <div className="mb-6 text-center">
             <h1 className="text-2xl font-bold tracking-tight text-foreground ">
-              Split Split
+              Split <span className="text-foreground/40">Split</span>
             </h1>
             {session.restaurant_name && (
               <p className="mt-1 text-sm font-medium text-foreground/70">
@@ -604,12 +588,12 @@ export function ClaimUI({
 
               <div className="mb-5 rounded-md border border-border bg-background p-3">
                 <p className="truncate font-mono text-xs font-medium text-foreground/80 text-left">
-                  {typeof window !== "undefined" ? window.location.href : ""}
+                  {typeof window !== "undefined" ? window.location.href.replace("receipt-split-iota.vercel.app", "split-split.com") : ""}
                 </p>
               </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
+                  navigator.clipboard.writeText(window.location.href.replace("receipt-split-iota.vercel.app", "split-split.com"));
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
@@ -717,7 +701,9 @@ export function ClaimUI({
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <div className="min-w-0 pr-4">
             <h1 className="text-base font-bold text-foreground truncate ">
-              {session.restaurant_name || "Split Split"}
+              {session.restaurant_name || (
+                <>Split <span className="text-foreground/40">Split</span></>
+              )}
             </h1>
             <p className="text-xs font-medium text-foreground/60 truncate">
               Name: {currentPerson?.name}
@@ -732,12 +718,21 @@ export function ClaimUI({
                 Receipt
               </button>
             )}
+            <button
+              onClick={() => setShowQR(true)}
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border bg-surface text-foreground/80 hover:bg-background transition-colors"
+              title="Show QR Code"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm14 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+            </button>
             {isHost && (
               <button
                 onClick={() => {
                   setReviewItems(items.map((item, i) => ({ ...item, sort_order: i })));
-                  setReviewTaxStr(session.tax.toFixed(2));
-                  setReviewTipStr(session.tip_amount.toFixed(2));
+                  setReviewTaxStr((session.tax || 0).toFixed(2));
+                  setReviewTipStr((session.tip_amount || 0).toFixed(2));
                   setReviewMiscFee(session.misc_fee || 0);
                   setReviewRestaurant(session.restaurant_name || "");
                   setStep("review");
@@ -799,6 +794,23 @@ export function ClaimUI({
           </button>
         </div>
       </div>
+
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xs rounded-xl border border-border bg-surface p-6 shadow-lg text-center">
+            <h2 className="text-lg font-bold text-foreground mb-4">Join Split</h2>
+            <div className="mx-auto flex justify-center bg-white p-4 rounded-lg mb-4">
+              <QRCodeSVG value={typeof window !== "undefined" ? window.location.href.replace("receipt-split-iota.vercel.app", "split-split.com") : ""} size={200} />
+            </div>
+            <button
+              onClick={() => setShowQR(false)}
+              className="w-full rounded-md border border-border bg-surface py-2.5 text-sm font-medium text-foreground hover:bg-background transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
