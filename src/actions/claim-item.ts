@@ -51,30 +51,6 @@ export async function unclaimItem(itemId: string, personId: string) {
   // Keep the existing split_count — the slot is now open for someone else
 }
 
-export async function claimMultipleItems(
-  items: { itemId: string; splitCount: number }[],
-  personId: string
-) {
-  const supabase = createServerClient();
-
-  for (const { itemId, splitCount } of items) {
-    await supabase
-      .from("claims")
-      .update({ split_count: splitCount })
-      .eq("item_id", itemId);
-
-    await supabase.from("claims").upsert(
-      {
-        item_id: itemId,
-        person_id: personId,
-        split_count: splitCount,
-        custom_amount: null,
-        custom_fraction: null,
-      },
-      { onConflict: "item_id,person_id" }
-    );
-  }
-}
 
 export async function markDone(personId: string) {
   const supabase = createServerClient();

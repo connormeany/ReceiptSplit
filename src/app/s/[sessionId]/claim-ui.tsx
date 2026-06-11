@@ -122,6 +122,19 @@ export function ClaimUI({
 
     channel = channel.on(
       "postgres_changes",
+      { event: "UPDATE", schema: "public", table: "sessions", filter: `id=eq.${session.id}` },
+      (payload) => {
+        if (payload.new && payload.new.status === "active" && session.status === "parsing") {
+          window.location.reload();
+        } else if (payload.new && payload.new.status === "error" && session.status === "parsing") {
+          alert("Failed to parse the receipt. Please try again.");
+          window.location.href = "/";
+        }
+      }
+    );
+
+    channel = channel.on(
+      "postgres_changes",
       { event: "*", schema: "public", table: "people", filter: `session_id=eq.${session.id}` },
       () => refreshPeople()
     );
@@ -139,7 +152,7 @@ export function ClaimUI({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refreshClaims, refreshPeople, session.id, items]);
+  }, [refreshClaims, refreshPeople, session.id, items, session.status]);
 
   const handleJoin = async () => {
     if (!nameInput.trim()) return;
