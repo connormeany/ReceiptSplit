@@ -169,13 +169,13 @@ export default function Home() {
                 </div>
                 <div className="w-24">
                   <label className="mb-1.5 block text-sm font-medium text-foreground">
-                    Size
+                    Group Size
                   </label>
                   <input
                     type="number"
                     min="2"
                     max="20"
-                    placeholder="Number of people"
+                    placeholder="3"
                     value={groupSize}
                     onChange={(e) => setGroupSize(e.target.value)}
                     className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-mono text-foreground placeholder:text-foreground/40 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary transition-colors"

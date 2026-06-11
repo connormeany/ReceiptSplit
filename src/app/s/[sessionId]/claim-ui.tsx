@@ -371,7 +371,7 @@ export function ClaimUI({
                           setReviewItems(updated);
                         }
                       }}
-                      className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1.5 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1.5 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                   <button
@@ -455,7 +455,7 @@ export function ClaimUI({
                   step="0.01"
                   value={reviewMiscFee}
                   onChange={(e) => setReviewMiscFee(parseFloat(e.target.value) || 0)}
-                  className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
             </div>

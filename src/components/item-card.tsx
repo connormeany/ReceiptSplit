@@ -280,7 +280,7 @@ export function ItemCard({
       >
        No
       </button>
-      {(showMoreSplits ? [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] : [2, 3, 4, 5]).map((n) => (
+      {(showMoreSplits ? Array.from({length: 15}, (_, i) => i + 2) : Array.from({length: Math.max((groupSize || 0) - 1, 4)}, (_, i) => i + 2)).map((n) => (
        <button
         key={n}
         onClick={() => handleClaim(n)}
@@ -355,7 +355,7 @@ export function ItemCard({
         placeholder="0.00"
         value={customAmount}
         onChange={(e) => setCustomAmount(e.target.value)}
-        className={`w-full rounded-md border pl-7 pr-3 py-1.5 font-mono text-sm font-medium focus:outline-none focus:ring-1 ${
+        className={`w-full rounded-md border pl-7 pr-3 py-1.5 font-mono text-sm font-medium focus:outline-none focus:ring-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
          iClaimedThis ? "border-white/20 bg-white/10 text-white placeholder:text-white/50 focus:border-white/50 focus:ring-white/50" : "border-border bg-surface text-foreground placeholder:text-foreground/50 focus:border-primary focus:ring-primary"
         }`}
        />
@@ -394,7 +394,7 @@ export function ItemCard({
         placeholder="1"
         value={fractionNum}
         onChange={(e) => setFractionNum(e.target.value)}
-        className={`w-14 rounded-md border px-2 py-1.5 text-center font-mono text-sm font-medium focus:outline-none focus:ring-1 ${
+        className={`w-14 rounded-md border px-2 py-1.5 text-center font-mono text-sm font-medium focus:outline-none focus:ring-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
          iClaimedThis ? "border-white/20 bg-white/10 text-white focus:border-white/50 focus:ring-white/50" : "border-border bg-surface text-foreground focus:border-primary focus:ring-primary"
         }`}
        />
@@ -405,7 +405,7 @@ export function ItemCard({
         placeholder="3"
         value={fractionDenom}
         onChange={(e) => setFractionDenom(e.target.value)}
-        className={`w-14 rounded-md border px-2 py-1.5 text-center font-mono text-sm font-medium focus:outline-none focus:ring-1 ${
+        className={`w-14 rounded-md border px-2 py-1.5 text-center font-mono text-sm font-medium focus:outline-none focus:ring-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
          iClaimedThis ? "border-white/20 bg-white/10 text-white focus:border-white/50 focus:ring-white/50" : "border-border bg-surface text-foreground focus:border-primary focus:ring-primary"
         }`}
        />
