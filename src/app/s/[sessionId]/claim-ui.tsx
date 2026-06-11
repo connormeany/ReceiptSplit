@@ -263,6 +263,22 @@ export function ClaimUI({
   if (step === "review") {
     const reviewItemsSum = reviewItems.reduce((sum, item) => sum + item.price, 0);
 
+    const handleReviewItemsChange = (newItems: typeof reviewItems) => {
+      const oldSubtotal = reviewItemsSum;
+      const newSubtotal = newItems.reduce((sum, item) => sum + item.price, 0);
+      
+      if (oldSubtotal > 0 && newSubtotal !== oldSubtotal) {
+        const ratio = newSubtotal / oldSubtotal;
+        
+        const currentTax = parseFloat(reviewTaxStr) || 0;
+        setReviewTaxStr((currentTax * ratio).toFixed(2));
+        
+        setReviewMiscFee(Number((reviewMiscFee * ratio).toFixed(2)));
+      }
+      
+      setReviewItems(newItems);
+    };
+
     const handleConfirmReview = async () => {
       setConfirming(true);
       try {
@@ -368,7 +384,7 @@ export function ClaimUI({
                         const currentItem = updated[i];
                         if (currentItem) {
                           updated[i] = { ...currentItem, price: parseFloat(e.target.value) || 0 };
-                          setReviewItems(updated);
+                          handleReviewItemsChange(updated);
                         }
                       }}
                       className="w-full rounded-md border border-border bg-surface pl-6 pr-2 py-1.5 text-right font-mono text-sm font-medium text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -376,7 +392,7 @@ export function ClaimUI({
                   </div>
                   <button
                     onClick={() => {
-                      setReviewItems(reviewItems.filter((_, itemIndex) => itemIndex !== i));
+                      handleReviewItemsChange(reviewItems.filter((_, itemIndex) => itemIndex !== i));
                     }}
                     className="flex h-8 w-8 items-center justify-center rounded-md text-foreground/50 hover:bg-red-50 hover:text-red-600"
                     title="Remove item"
@@ -390,7 +406,7 @@ export function ClaimUI({
             </div>
             <button
               onClick={() => {
-                setReviewItems([
+                handleReviewItemsChange([
                   ...reviewItems,
                   { id: undefined as unknown as string, name: "", price: 0, quantity: 1, sort_order: reviewItems.length } as unknown as Item & { sort_order: number },
                 ]);
