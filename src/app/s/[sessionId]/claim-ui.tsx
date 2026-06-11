@@ -139,6 +139,24 @@ export function ClaimUI({
       () => refreshPeople()
     );
 
+    // Fallback polling for session status in case realtime is not enabled for 'sessions' table
+    let pollInterval: NodeJS.Timeout | null = null;
+    if (session.status === "parsing") {
+      pollInterval = setInterval(async () => {
+        const { data } = await supabase
+          .from("sessions")
+          .select("status")
+          .eq("id", session.id)
+          .single();
+        if (data?.status === "active") {
+          window.location.reload();
+        } else if (data?.status === "error") {
+          alert("Failed to parse the receipt. Please try again.");
+          window.location.href = "/";
+        }
+      }, 2000);
+    }
+
     if (itemIds.length > 0) {
       channel = channel.on(
         "postgres_changes",
@@ -151,6 +169,7 @@ export function ClaimUI({
 
     return () => {
       supabase.removeChannel(channel);
+      if (pollInterval) clearInterval(pollInterval);
     };
   }, [refreshClaims, refreshPeople, session.id, items, session.status]);
 
