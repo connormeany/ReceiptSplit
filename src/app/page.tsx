@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 type InputMode = "link" | "upload";
+
+const STORAGE_KEY_NAME = "splitsplit-name";
+const STORAGE_KEY_VENMO = "splitsplit-venmo";
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("upload");
@@ -13,6 +16,18 @@ export default function Home() {
   const [groupSize, setGroupSize] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Restore saved name & venmo for returning users
+  useEffect(() => {
+    try {
+      const savedName = localStorage.getItem(STORAGE_KEY_NAME);
+      const savedVenmo = localStorage.getItem(STORAGE_KEY_VENMO);
+      if (savedName) setName(savedName);
+      if (savedVenmo) setVenmo(savedVenmo);
+    } catch {
+      // localStorage unavailable (e.g. private browsing)
+    }
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +132,15 @@ export default function Home() {
       }
 
       localStorage.setItem(`person-${data.sessionId}`, data.personId);
+
+      // Save name & venmo for returning users
+      try {
+        localStorage.setItem(STORAGE_KEY_NAME, name.trim());
+        localStorage.setItem(STORAGE_KEY_VENMO, venmo.trim());
+      } catch {
+        // localStorage unavailable
+      }
+
       window.location.href = `/s/${data.sessionId}`;
     } catch {
       setError("Something went wrong. Please try again.");
